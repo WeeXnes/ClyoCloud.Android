@@ -65,6 +65,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -628,7 +629,8 @@ data class CloudFile(
     val description: String?,
     val tags: List<TagItem>,
     val previewImage: String? = null,
-    val fullPath: String? = null
+    val fullPath: String? = null,
+    var isWallpaper: Boolean = false
 )
 
 data class MediaItem(
@@ -1245,6 +1247,7 @@ fun DashboardScreen(
     val sharedPref = remember { context.getSharedPreferences("ClyoCloudPrefs", Context.MODE_PRIVATE) }
     var isGridView by remember { mutableStateOf(sharedPref.getBoolean("is_grid_view", false)) }
     var autoplayPreviews by remember { mutableStateOf(sharedPref.getBoolean("autoplay_previews", true)) }
+    var sortOption by remember { mutableStateOf(sharedPref.getString("sort_option", "name") ?: "name") }
 
     LaunchedEffect(isGridView) {
         sharedPref.edit().putBoolean("is_grid_view", isGridView).apply()
@@ -1254,12 +1257,40 @@ fun DashboardScreen(
         sharedPref.edit().putBoolean("autoplay_previews", autoplayPreviews).apply()
     }
 
+    LaunchedEffect(sortOption) {
+        sharedPref.edit().putString("sort_option", sortOption).apply()
+    }
+
     // Files Tab state
     var currentPath by remember { mutableStateOf("") }
     val pathStack = remember { mutableStateListOf<String>() }
     var filesList by remember { mutableStateOf<List<CloudFile>>(emptyList()) }
     var isFilesLoading by remember { mutableStateOf(false) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
+
+    // Multi-Selection State
+    var isSelectionMode by remember { mutableStateOf(false) }
+    val selectedFiles = remember { mutableStateListOf<String>() }
+
+    // Dialog state variables
+    var showRenameDialog by remember { mutableStateOf(false) }
+    var renameTargetFile by remember { mutableStateOf<CloudFile?>(null) }
+    var renameNewName by remember { mutableStateOf("") }
+
+    var showBulkRenameDialog by remember { mutableStateOf(false) }
+    var bulkRenameBaseName by remember { mutableStateOf("") }
+    var bulkRenameExtension by remember { mutableStateOf("") }
+    var bulkRenameStartNumber by remember { mutableStateOf(1) }
+
+    var showMoveDialog by remember { mutableStateOf(false) }
+    var moveTargetFiles by remember { mutableStateOf<List<CloudFile>>(emptyList()) }
+    var pickerCurrentPath by remember { mutableStateOf("") }
+    var pickerFoldersList by remember { mutableStateOf<List<CloudFile>>(emptyList()) }
+    var isPickerLoading by remember { mutableStateOf(false) }
+    var showPickerCreateFolderDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf(false) }
+    var isBulkActionFavourite by remember { mutableStateOf(true) }
+    var showBulkTagDialog by remember { mutableStateOf(false) }
 
     // Media Tab state
     var mediaList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
@@ -1268,7 +1299,7 @@ fun DashboardScreen(
     // Global Predefined Tags state
     var predefinedTags by remember { mutableStateOf<List<TagItem>>(emptyList()) }
 
-    // Tag editing dialog state
+    // Tag / Details editing dialog state
     var showTagEditDialog by remember { mutableStateOf(false) }
     var fileForTagEdit by remember { mutableStateOf<CloudFile?>(null) }
 
@@ -1339,8 +1370,11 @@ fun DashboardScreen(
     }
 
     // Navigation Backpress handling
-    BackHandler(enabled = pathStack.isNotEmpty() || activeViewerFile != null || activeViewerMedia != null) {
-        if (activeViewerFile != null) {
+    BackHandler(enabled = isSelectionMode || pathStack.isNotEmpty() || activeViewerFile != null || activeViewerMedia != null) {
+        if (isSelectionMode) {
+            selectedFiles.clear()
+            isSelectionMode = false
+        } else if (activeViewerFile != null) {
             activeViewerFile = null
         } else if (activeViewerMedia != null) {
             activeViewerMedia = null
@@ -1352,6 +1386,8 @@ fun DashboardScreen(
 
     // Refresh Files List when path changes
     LaunchedEffect(currentPath) {
+        selectedFiles.clear()
+        isSelectionMode = false
         isFilesLoading = true
         try {
             filesList = fetchFilesList(connection.serverUrl, connection.token, currentPath)
@@ -1399,70 +1435,311 @@ fun DashboardScreen(
     GlassBackground {
         Column(modifier = Modifier.fillMaxSize()) {
             // Header / Toolbar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 48.dp, start = 16.dp, end = 16.dp, bottom = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = when (currentTab) {
-                            DashboardTab.Files -> "Cloud Storage"
-                            DashboardTab.Media -> "Media Library"
-                            DashboardTab.Settings -> "Connection"
-                        },
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Text(
-                        text = connection.username,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color(0xFFA0A0C0)
-                    )
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (currentTab != DashboardTab.Settings) {
-                        IconButton(onClick = { showFavoritesOnly = !showFavoritesOnly }) {
-                            Icon(
-                                imageVector = if (showFavoritesOnly) StarIcon else StarBorderIcon,
-                                contentDescription = "Favorites Only",
-                                tint = if (showFavoritesOnly) Color(0xFFFFD700) else Color(0xFFA0A0C0)
-                            )
+            if (currentTab == DashboardTab.Files && isSelectionMode) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 48.dp, start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = {
+                            selectedFiles.clear()
+                            isSelectionMode = false
+                        }) {
+                            Icon(CloseIcon, contentDescription = "Cancel Selection", tint = Color.White)
                         }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "${selectedFiles.size} selected",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
                     }
 
-                    if (currentTab == DashboardTab.Files) {
-                        IconButton(onClick = { isGridView = !isGridView }) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Toggle Select All / Deselect All
+                        IconButton(onClick = {
+                            if (selectedFiles.size == filesList.size) {
+                                selectedFiles.clear()
+                                isSelectionMode = false
+                            } else {
+                                selectedFiles.clear()
+                                filesList.forEach { selectedFiles.add(it.name) }
+                            }
+                        }) {
                             Icon(
-                                imageVector = if (isGridView) ListViewIcon else GridViewIcon,
-                                contentDescription = "Toggle View Mode",
-                                tint = LocalClyoTheme.current.accent1
+                                imageVector = CheckIcon,
+                                contentDescription = "Select All Toggle",
+                                tint = if (selectedFiles.size == filesList.size) LocalClyoTheme.current.accent1 else Color.White
                             )
                         }
-                        IconButton(onClick = { autoplayPreviews = !autoplayPreviews }) {
-                            Icon(
-                                imageVector = AutoplayIcon,
-                                contentDescription = "Autoplay Previews",
-                                tint = if (autoplayPreviews) LocalClyoTheme.current.accent2 else Color(0xFFA0A0C0)
-                            )
+
+                        // Bulk Actions Trigger Dropdown Menu
+                        var showBulkActionsMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(onClick = { showBulkActionsMenu = true }) {
+                                Icon(MoreVertIcon, contentDescription = "Bulk Actions", tint = LocalClyoTheme.current.accent2)
+                            }
+                            DropdownMenu(
+                                expanded = showBulkActionsMenu,
+                                onDismissRequest = { showBulkActionsMenu = false },
+                                modifier = Modifier.background(Color(0xFF1E1E2C))
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("Favorite", color = Color.White, fontSize = 13.sp) },
+                                    onClick = {
+                                        showBulkActionsMenu = false
+                                        scope.launch {
+                                            var count = 0
+                                            selectedFiles.forEach { name ->
+                                                val file = filesList.find { it.name == name }
+                                                if (file != null && !file.isFavourite) {
+                                                    val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                                    if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = true)) {
+                                                        count++
+                                                    }
+                                                }
+                                            }
+                                            Toast.makeText(context, "Added $count items to favorites", Toast.LENGTH_SHORT).show()
+                                            triggerFileRefresh()
+                                            selectedFiles.clear()
+                                            isSelectionMode = false
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Unfavorite", color = Color.White, fontSize = 13.sp) },
+                                    onClick = {
+                                        showBulkActionsMenu = false
+                                        scope.launch {
+                                            var count = 0
+                                            selectedFiles.forEach { name ->
+                                                val file = filesList.find { it.name == name }
+                                                if (file != null && file.isFavourite) {
+                                                    val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                                    if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = false)) {
+                                                        count++
+                                                    }
+                                                }
+                                            }
+                                            Toast.makeText(context, "Removed $count items from favorites", Toast.LENGTH_SHORT).show()
+                                            triggerFileRefresh()
+                                            selectedFiles.clear()
+                                            isSelectionMode = false
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Add Tags", color = Color.White, fontSize = 13.sp) },
+                                    onClick = {
+                                        showBulkActionsMenu = false
+                                        showBulkTagDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Move", color = Color.White, fontSize = 13.sp) },
+                                    onClick = {
+                                        showBulkActionsMenu = false
+                                        val selectedItemsList = filesList.filter { selectedFiles.contains(it.name) }
+                                        moveTargetFiles = selectedItemsList
+                                        pickerCurrentPath = ""
+                                        showMoveDialog = true
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(if (selectedFiles.size == 1) "Rename" else "Bulk Rename", color = Color.White, fontSize = 13.sp) },
+                                    onClick = {
+                                        showBulkActionsMenu = false
+                                        if (selectedFiles.size == 1) {
+                                            val file = filesList.find { it.name == selectedFiles.first() }
+                                            if (file != null) {
+                                                renameTargetFile = file
+                                                renameNewName = file.name
+                                                showRenameDialog = true
+                                            }
+                                        } else {
+                                            bulkRenameBaseName = ""
+                                            bulkRenameExtension = ""
+                                            bulkRenameStartNumber = 1
+                                            showBulkRenameDialog = true
+                                        }
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Download ZIP", color = Color.White, fontSize = 13.sp) },
+                                    onClick = {
+                                        showBulkActionsMenu = false
+                                        val filesQuery = selectedFiles.joinToString(",")
+                                        val bulkDownloadUrl = "${connection.serverUrl}/api/bulk-download?files=${Uri.encode(filesQuery)}&path=${Uri.encode(currentPath)}"
+                                        val zipName = "bulk_download.zip"
+                                        scope.launch {
+                                            Toast.makeText(context, "Downloading zip archive...", Toast.LENGTH_SHORT).show()
+                                            val success = downloadUrlToDevice(context, connection.token, bulkDownloadUrl, zipName)
+                                            if (success) {
+                                                Toast.makeText(context, "Download complete: $zipName", Toast.LENGTH_LONG).show()
+                                            } else {
+                                                Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                                            }
+                                            selectedFiles.clear()
+                                            isSelectionMode = false
+                                        }
+                                    }
+                                )
+                                
+                                val selectedObjects = filesList.filter { selectedFiles.contains(it.name) }
+                                if (selectedObjects.isNotEmpty() && selectedObjects.all { it.isFolder }) {
+                                    DropdownMenuItem(
+                                        text = { Text("Toggle Shorts", color = Color.White, fontSize = 13.sp) },
+                                        onClick = {
+                                            showBulkActionsMenu = false
+                                            scope.launch {
+                                                val settings = fetchUserSettings(connection.serverUrl, connection.token)
+                                                if (settings != null) {
+                                                    val selectedShortsPaths = mutableListOf<String>()
+                                                    val pathArr = settings.optJSONArray("selectedShortsPaths")
+                                                    if (pathArr != null) {
+                                                        for (j in 0 until pathArr.length()) {
+                                                            selectedShortsPaths.add(pathArr.getString(j))
+                                                        }
+                                                    }
+                                                    var toggledCount = 0
+                                                    selectedObjects.forEach { folder ->
+                                                        val relPath = if (currentPath.isEmpty()) folder.name else "$currentPath/${folder.name}"
+                                                        if (selectedShortsPaths.contains(relPath)) {
+                                                            selectedShortsPaths.remove(relPath)
+                                                        } else {
+                                                            selectedShortsPaths.add(relPath)
+                                                        }
+                                                        toggledCount++
+                                                    }
+                                                    val updatedArr = JSONArray()
+                                                    selectedShortsPaths.forEach { updatedArr.put(it) }
+                                                    settings.put("selectedShortsPaths", updatedArr)
+                                                    if (saveUserSettings(connection.serverUrl, connection.token, settings)) {
+                                                        Toast.makeText(context, "Toggled Shorts for $toggledCount folders", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        Toast.makeText(context, "Failed to save settings", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                } else {
+                                                    Toast.makeText(context, "Failed to fetch settings", Toast.LENGTH_SHORT).show()
+                                                }
+                                                selectedFiles.clear()
+                                                isSelectionMode = false
+                                            }
+                                        }
+                                    )
+                                }
+                                
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                                DropdownMenuItem(
+                                    text = { Text("Delete", color = Color(0xFFFF5252), fontSize = 13.sp) },
+                                    onClick = {
+                                        showBulkActionsMenu = false
+                                        showDeleteConfirmDialog = true
+                                    }
+                                )
+                            }
                         }
-                        IconButton(onClick = { selectFilesLauncher.launch("*/*") }) {
-                            Icon(
-                                imageVector = UploadIcon,
-                                contentDescription = "Upload File",
-                                tint = LocalClyoTheme.current.accent1
-                            )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 48.dp, start = 16.dp, end = 16.dp, bottom = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = when (currentTab) {
+                                DashboardTab.Files -> "Cloud Storage"
+                                DashboardTab.Media -> "Media Library"
+                                DashboardTab.Settings -> "Connection"
+                            },
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            text = connection.username,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFA0A0C0)
+                        )
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (currentTab != DashboardTab.Settings) {
+                            IconButton(onClick = { showFavoritesOnly = !showFavoritesOnly }) {
+                                Icon(
+                                    imageVector = if (showFavoritesOnly) StarIcon else StarBorderIcon,
+                                    contentDescription = "Favorites Only",
+                                    tint = if (showFavoritesOnly) Color(0xFFFFD700) else Color(0xFFA0A0C0)
+                                )
+                            }
                         }
-                        IconButton(onClick = { showCreateFolderDialog = true }) {
-                            Icon(
-                                imageVector = AddIcon,
-                                contentDescription = "Create Folder",
-                                tint = LocalClyoTheme.current.accent2
-                            )
+
+                        if (currentTab == DashboardTab.Files) {
+                            var showSortMenu by remember { mutableStateOf(false) }
+                            Box {
+                                IconButton(onClick = { showSortMenu = true }) {
+                                    Icon(
+                                        imageVector = SortIcon,
+                                        contentDescription = "Sort Files",
+                                        tint = Color.White
+                                    )
+                                }
+                                DropdownMenu(
+                                    expanded = showSortMenu,
+                                    onDismissRequest = { showSortMenu = false },
+                                    modifier = Modifier.background(Color(0xFF1E1E2C))
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text("Name", color = if (sortOption == "name") LocalClyoTheme.current.accent1 else Color.White, fontSize = 13.sp) },
+                                        onClick = { sortOption = "name"; showSortMenu = false }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Size", color = if (sortOption == "size") LocalClyoTheme.current.accent1 else Color.White, fontSize = 13.sp) },
+                                        onClick = { sortOption = "size"; showSortMenu = false }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Date", color = if (sortOption == "date") LocalClyoTheme.current.accent1 else Color.White, fontSize = 13.sp) },
+                                        onClick = { sortOption = "date"; showSortMenu = false }
+                                    )
+                                }
+                            }
+
+                            IconButton(onClick = { isGridView = !isGridView }) {
+                                Icon(
+                                    imageVector = if (isGridView) ListViewIcon else GridViewIcon,
+                                    contentDescription = "Toggle View Mode",
+                                    tint = LocalClyoTheme.current.accent1
+                                )
+                            }
+                            IconButton(onClick = { autoplayPreviews = !autoplayPreviews }) {
+                                Icon(
+                                    imageVector = AutoplayIcon,
+                                    contentDescription = "Autoplay Previews",
+                                    tint = if (autoplayPreviews) LocalClyoTheme.current.accent2 else Color(0xFFA0A0C0)
+                                )
+                            }
+                            IconButton(onClick = { selectFilesLauncher.launch("*/*") }) {
+                                Icon(
+                                    imageVector = UploadIcon,
+                                    contentDescription = "Upload File",
+                                    tint = LocalClyoTheme.current.accent1
+                                )
+                            }
+                            IconButton(onClick = { showCreateFolderDialog = true }) {
+                                Icon(
+                                    imageVector = AddIcon,
+                                    contentDescription = "Create Folder",
+                                    tint = LocalClyoTheme.current.accent2
+                                )
+                            }
                         }
                     }
                 }
@@ -1527,6 +1804,9 @@ fun DashboardScreen(
                             showFavoritesOnly = showFavoritesOnly,
                             isGridView = isGridView,
                             autoplayPreviews = autoplayPreviews,
+                            sortOption = sortOption,
+                            isSelectionMode = isSelectionMode,
+                            selectedFiles = selectedFiles.toSet(),
                             onPathChanged = { newPath ->
                                 currentPath = newPath
                                 pathStack.clear()
@@ -1589,6 +1869,45 @@ fun DashboardScreen(
                             onEditTags = { file ->
                                 fileForTagEdit = file
                                 showTagEditDialog = true
+                            },
+                            onToggleSelection = { file ->
+                                if (selectedFiles.contains(file.name)) {
+                                    selectedFiles.remove(file.name)
+                                    if (selectedFiles.isEmpty()) {
+                                        isSelectionMode = false
+                                    }
+                                } else {
+                                    selectedFiles.add(file.name)
+                                }
+                            },
+                            onLongClick = { file ->
+                                isSelectionMode = true
+                                selectedFiles.clear()
+                                selectedFiles.add(file.name)
+                            },
+                            onRename = { file ->
+                                renameTargetFile = file
+                                renameNewName = file.name
+                                showRenameDialog = true
+                            },
+                            onMove = { file ->
+                                moveTargetFiles = listOf(file)
+                                pickerCurrentPath = ""
+                                showMoveDialog = true
+                            },
+                            onDownloadZip = { file ->
+                                val fileRelativePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                val zipUrl = "${connection.serverUrl}/api/zip?path=${Uri.encode(fileRelativePath)}"
+                                val zipName = "${file.name}.zip"
+                                scope.launch {
+                                    Toast.makeText(context, "Downloading zip archive...", Toast.LENGTH_SHORT).show()
+                                    val success = downloadUrlToDevice(context, connection.token, zipUrl, zipName)
+                                    if (success) {
+                                        Toast.makeText(context, "Download complete: $zipName", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
                             }
                         )
                     }
@@ -1779,18 +2098,28 @@ fun DashboardScreen(
             }
         }
 
-        // Tag & Share Settings Dialog
+        // Tag & Share Settings / File Details Dialog
         if (showTagEditDialog && fileForTagEdit != null) {
             val file = fileForTagEdit!!
             val selectedTags = remember { mutableStateListOf<TagItem>().apply { addAll(file.tags) } }
             var isPublicState by remember { mutableStateOf(file.isPublic) }
+            var isWallpaperState by remember { mutableStateOf(file.isWallpaper) }
+            var descriptionState by remember { mutableStateOf(file.description ?: "") }
+            
+            // Tag creation states
+            var newTagName by remember { mutableStateOf("") }
+            val tagColors = listOf("#4B5EAA", "#BB86FC", "#03DAC6", "#FFB347", "#FF6B6B", "#6BCB77", "#FFD93D")
+            var selectedTagColor by remember { mutableStateOf(tagColors.first()) }
+            
             val fullFilePath = file.fullPath ?: (if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}")
             val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
 
             Dialog(onDismissRequest = { showTagEditDialog = false }) {
                 GlassCard(modifier = Modifier.padding(16.dp)) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
@@ -1799,13 +2128,33 @@ fun DashboardScreen(
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp
                         )
-                        Text(
-                            text = file.name,
-                            color = Color(0xFFA0A0C0),
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+
+                        // File properties list
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Name: ${file.name}", color = Color.White, fontSize = 12.sp)
+                            Text("Path: /$fullFilePath", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                            if (!file.isFolder) {
+                                Text("Size: ${formatFileSize(file.size)}", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                                Text("Type: ${file.type}", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                            } else {
+                                Text("Type: Folder", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                            }
+                            val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(file.lastModified))
+                            Text("Modified: $dateStr", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                        }
+
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+                        // Description Editor
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Description", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            GlassTextField(
+                                value = descriptionState,
+                                onValueChange = { descriptionState = it },
+                                label = "Edit description...",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
 
                         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
@@ -1850,11 +2199,74 @@ fun DashboardScreen(
                             }
                         }
 
+                        // Wallpaper Toggling & Folder Icon Tools
+                        if (!file.isFolder && isImageFile(file.name)) {
+                            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Set as Wallpaper", color = Color.White, fontSize = 13.sp)
+                                androidx.compose.material3.Switch(
+                                    checked = isWallpaperState,
+                                    onCheckedChange = { isWallpaperState = it },
+                                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                                        checkedThumbColor = LocalClyoTheme.current.accent1,
+                                        checkedTrackColor = LocalClyoTheme.current.accent1.copy(alpha = 0.4f)
+                                    )
+                                )
+                            }
+
+                            if (currentPath.isNotEmpty()) {
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            if (updateFileMeta(connection.serverUrl, connection.token, currentPath, previewImage = file.name)) {
+                                                Toast.makeText(context, "Set folder icon successfully", Toast.LENGTH_SHORT).show()
+                                                showTagEditDialog = false
+                                                triggerFileRefresh()
+                                            } else {
+                                                Toast.makeText(context, "Failed to set folder icon", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent2)
+                                ) {
+                                    Text("Set as Folder Icon", color = Color(0xFF0F0C1B), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        if (file.isFolder) {
+                            if (file.previewImage != null) {
+                                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, clearPreviewImage = true)) {
+                                                Toast.makeText(context, "Reset folder icon successfully", Toast.LENGTH_SHORT).show()
+                                                showTagEditDialog = false
+                                                triggerFileRefresh()
+                                            } else {
+                                                Toast.makeText(context, "Failed to reset folder icon", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
+                                ) {
+                                    Text("Reset Folder Icon", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
                         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
                         // Tags Section
                         Text("Tags", color = LocalClyoTheme.current.accent1, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        LazyColumn(modifier = Modifier.height(140.dp)) {
+                        LazyColumn(modifier = Modifier.height(110.dp)) {
                             items(predefinedTags) { tag ->
                                 val isChecked = selectedTags.any { it.name == tag.name }
                                 Row(
@@ -1884,6 +2296,64 @@ fun DashboardScreen(
                             }
                         }
 
+                        // Add new tag textbox
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                GlassTextField(
+                                    value = newTagName,
+                                    onValueChange = { newTagName = it },
+                                    label = "Create new tag...",
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            var showColorsMenu by remember { mutableStateOf(false) }
+                            Box {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .background(Color(android.graphics.Color.parseColor(selectedTagColor)), CircleShape)
+                                        .clickable { showColorsMenu = true }
+                                )
+                                DropdownMenu(
+                                    expanded = showColorsMenu,
+                                    onDismissRequest = { showColorsMenu = false }
+                                ) {
+                                    tagColors.forEach { colorStr ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Box(modifier = Modifier.size(20.dp).background(Color(android.graphics.Color.parseColor(colorStr)), CircleShape))
+                                            },
+                                            onClick = { selectedTagColor = colorStr; showColorsMenu = false }
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(onClick = {
+                                if (newTagName.isNotBlank()) {
+                                    val newTagObj = TagItem(newTagName.trim(), selectedTagColor)
+                                    if (!predefinedTags.any { it.name.lowercase() == newTagObj.name.lowercase() }) {
+                                        scope.launch {
+                                            val updatedPredefined = predefinedTags + newTagObj
+                                            if (savePredefinedTags(connection.serverUrl, connection.token, updatedPredefined)) {
+                                                predefinedTags = fetchPredefinedTags(connection.serverUrl, connection.token)
+                                            }
+                                        }
+                                    }
+                                    if (!selectedTags.any { it.name.lowercase() == newTagObj.name.lowercase() }) {
+                                        selectedTags.add(newTagObj)
+                                    }
+                                    newTagName = ""
+                                }
+                            }) {
+                                Icon(AddIcon, contentDescription = "Add Tag", tint = LocalClyoTheme.current.accent2)
+                            }
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             horizontalArrangement = Arrangement.End
@@ -1895,7 +2365,15 @@ fun DashboardScreen(
                             Button(
                                 onClick = {
                                     scope.launch {
-                                        if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isPublic = isPublicState, tags = selectedTags.toList())) {
+                                        if (updateFileMeta(
+                                                serverUrl = connection.serverUrl,
+                                                token = connection.token,
+                                                filePath = fullFilePath,
+                                                isPublic = isPublicState,
+                                                isWallpaper = isWallpaperState,
+                                                description = descriptionState,
+                                                tags = selectedTags.toList()
+                                            )) {
                                             showTagEditDialog = false
                                             triggerFileRefresh()
                                             triggerMediaRefresh()
@@ -1907,6 +2385,501 @@ fun DashboardScreen(
                                 colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
                             ) {
                                 Text("Save", color = Color(0xFF0F0C1B))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Single Rename Dialog
+        if (showRenameDialog && renameTargetFile != null) {
+            Dialog(onDismissRequest = { showRenameDialog = false }) {
+                GlassCard(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text("Rename File/Folder", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        GlassTextField(
+                            value = renameNewName,
+                            onValueChange = { renameNewName = it },
+                            label = "New name",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showRenameDialog = false }) {
+                                Text("Cancel", color = Color(0xFFA0A0C0))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (renameNewName.isNotBlank() && renameNewName != renameTargetFile!!.name) {
+                                        scope.launch {
+                                            val oldName = renameTargetFile!!.name
+                                            val oldPath = if (currentPath.isEmpty()) oldName else "$currentPath/$oldName"
+                                            if (renameFileOrFolder(connection.serverUrl, connection.token, oldPath, renameNewName.trim())) {
+                                                showRenameDialog = false
+                                                triggerFileRefresh()
+                                            } else {
+                                                Toast.makeText(context, "Failed to rename", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    } else {
+                                        showRenameDialog = false
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                            ) {
+                                Text("Rename", color = Color(0xFF0F0C1B))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bulk Rename Dialog
+        if (showBulkRenameDialog) {
+            Dialog(onDismissRequest = { showBulkRenameDialog = false }) {
+                GlassCard(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Bulk Rename Selected", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("${selectedFiles.size} files will be renamed sequentially.", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                        GlassTextField(
+                            value = bulkRenameBaseName,
+                            onValueChange = { bulkRenameBaseName = it },
+                            label = "Base Name (e.g. vacation)",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        GlassTextField(
+                            value = bulkRenameExtension,
+                            onValueChange = { bulkRenameExtension = it },
+                            label = "Extension override (optional, e.g. png)",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        GlassTextField(
+                            value = bulkRenameStartNumber.toString(),
+                            onValueChange = { bulkRenameStartNumber = it.toIntOrNull() ?: 1 },
+                            label = "Start Index Number",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showBulkRenameDialog = false }) {
+                                Text("Cancel", color = Color(0xFFA0A0C0))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (bulkRenameBaseName.isNotBlank()) {
+                                        scope.launch {
+                                            var success = true
+                                            val sortedSelected = selectedFiles.sorted()
+                                            sortedSelected.forEachIndexed { index, oldName ->
+                                                val file = filesList.find { it.name == oldName }
+                                                if (file != null) {
+                                                    val oldPath = if (currentPath.isEmpty()) oldName else "$currentPath/$oldName"
+                                                    val originalExt = if (oldName.contains('.')) ".${oldName.split('.').last()}" else ""
+                                                    val newExt = if (bulkRenameExtension.isNotBlank()) {
+                                                        if (bulkRenameExtension.startsWith('.')) bulkRenameExtension else ".$bulkRenameExtension"
+                                                    } else {
+                                                        originalExt
+                                                    }
+                                                    val countNum = bulkRenameStartNumber + index
+                                                    val newName = "${bulkRenameBaseName.trim()}_$countNum$newExt"
+                                                    if (!renameFileOrFolder(connection.serverUrl, connection.token, oldPath, newName)) {
+                                                        success = false
+                                                    }
+                                                }
+                                            }
+                                            if (success) {
+                                                Toast.makeText(context, "Bulk rename complete", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                Toast.makeText(context, "Bulk rename finished with some failures", Toast.LENGTH_SHORT).show()
+                                            }
+                                            showBulkRenameDialog = false
+                                            selectedFiles.clear()
+                                            isSelectionMode = false
+                                            triggerFileRefresh()
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                            ) {
+                                Text("Rename All", color = Color(0xFF0F0C1B))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Move Directory Picker Dialog
+        if (showMoveDialog) {
+            // Load directories dynamically
+            LaunchedEffect(pickerCurrentPath) {
+                isPickerLoading = true
+                try {
+                    val allItems = fetchFilesList(connection.serverUrl, connection.token, pickerCurrentPath)
+                    // Filter out moving files to prevent circular reference
+                    val targetNames = moveTargetFiles.map { it.name }
+                    pickerFoldersList = allItems.filter { it.isFolder && (pickerCurrentPath.isNotEmpty() || !targetNames.contains(it.name)) }
+                } catch (e: Exception) {
+                    Log.e("ClyoCloudAndroid", "Picker fetch error", e)
+                } finally {
+                    isPickerLoading = false
+                }
+            }
+
+            Dialog(onDismissRequest = { showMoveDialog = false }) {
+                GlassCard(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Move Items", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Moving ${moveTargetFiles.size} item(s)", color = LocalClyoTheme.current.accent1, fontSize = 12.sp)
+                        
+                        // Current Path Label with breadcrumb actions
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    if (pickerCurrentPath.isNotEmpty()) {
+                                        val parts = pickerCurrentPath.split('/')
+                                        pickerCurrentPath = if (parts.size <= 1) "" else parts.dropLast(1).joinToString("/")
+                                    }
+                                },
+                                enabled = pickerCurrentPath.isNotEmpty()
+                            ) {
+                                Icon(ArrowBackIcon, contentDescription = "Up Directory", tint = if (pickerCurrentPath.isNotEmpty()) Color.White else Color.Gray)
+                            }
+                            Text(
+                                text = if (pickerCurrentPath.isEmpty()) "Destination: /Root" else "Destination: /$pickerCurrentPath",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = { showPickerCreateFolderDialog = true }) {
+                                Icon(AddIcon, contentDescription = "Create Directory Here", tint = LocalClyoTheme.current.accent2)
+                            }
+                        }
+
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+                        if (isPickerLoading) {
+                            Box(modifier = Modifier.height(150.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
+                            }
+                        } else if (pickerFoldersList.isEmpty()) {
+                            Box(modifier = Modifier.height(150.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                Text("No subdirectories here", color = Color(0xFFA0A0C0))
+                            }
+                        } else {
+                            LazyColumn(modifier = Modifier.height(150.dp)) {
+                                items(pickerFoldersList) { folder ->
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                pickerCurrentPath = if (pickerCurrentPath.isEmpty()) folder.name else "$pickerCurrentPath/${folder.name}"
+                                            }
+                                            .padding(vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(FolderIcon, contentDescription = null, tint = LocalClyoTheme.current.accent1, modifier = Modifier.size(20.dp))
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                        Text(folder.name, color = Color.White, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = { showMoveDialog = false }) {
+                                Text("Cancel", color = Color(0xFFA0A0C0))
+                            }
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        val fullPaths = moveTargetFiles.map { if (currentPath.isEmpty()) it.name else "$currentPath/${it.name}" }
+                                        if (moveItems(connection.serverUrl, connection.token, fullPaths, pickerCurrentPath)) {
+                                            Toast.makeText(context, "Items moved successfully", Toast.LENGTH_SHORT).show()
+                                            showMoveDialog = false
+                                            selectedFiles.clear()
+                                            isSelectionMode = false
+                                            triggerFileRefresh()
+                                        } else {
+                                            Toast.makeText(context, "Move failed", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                            ) {
+                                Text("Move Here", color = Color(0xFF0F0C1B))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Subfolder creation inside Move Picker Dialog
+        if (showPickerCreateFolderDialog) {
+            var pickerNewFolderName by remember { mutableStateOf("") }
+            Dialog(onDismissRequest = { showPickerCreateFolderDialog = false }) {
+                GlassCard(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text("Create Folder", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        GlassTextField(
+                            value = pickerNewFolderName,
+                            onValueChange = { pickerNewFolderName = it },
+                            label = "Folder name",
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showPickerCreateFolderDialog = false }) {
+                                Text("Cancel", color = Color(0xFFA0A0C0))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (pickerNewFolderName.isNotBlank()) {
+                                        scope.launch {
+                                            if (createFolder(connection.serverUrl, connection.token, pickerNewFolderName.trim(), pickerCurrentPath)) {
+                                                showPickerCreateFolderDialog = false
+                                                // Refresh folders list in picker
+                                                val allItems = fetchFilesList(connection.serverUrl, connection.token, pickerCurrentPath)
+                                                val targetNames = moveTargetFiles.map { it.name }
+                                                pickerFoldersList = allItems.filter { it.isFolder && (pickerCurrentPath.isNotEmpty() || !targetNames.contains(it.name)) }
+                                            } else {
+                                                Toast.makeText(context, "Failed to create folder", Toast.LENGTH_SHORT).show()
+                                            }
+                                        }
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                            ) {
+                                Text("Create", color = Color(0xFF0F0C1B))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Delete Confirmation Dialog
+        if (showDeleteConfirmDialog) {
+            Dialog(onDismissRequest = { showDeleteConfirmDialog = false }) {
+                GlassCard(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text("Confirm Delete", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Are you sure you want to delete the selected ${selectedFiles.size} item(s)? This action cannot be undone.", color = Color(0xFFA0A0C0), fontSize = 13.sp)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showDeleteConfirmDialog = false }) {
+                                Text("Cancel", color = Color(0xFFA0A0C0))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        var count = 0
+                                        selectedFiles.forEach { name ->
+                                            val oldPath = if (currentPath.isEmpty()) name else "$currentPath/$name"
+                                            if (deleteFileOrFolder(connection.serverUrl, connection.token, oldPath)) {
+                                                count++
+                                            }
+                                        }
+                                        Toast.makeText(context, "Deleted $count items", Toast.LENGTH_SHORT).show()
+                                        showDeleteConfirmDialog = false
+                                        selectedFiles.clear()
+                                        isSelectionMode = false
+                                        triggerFileRefresh()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
+                            ) {
+                                Text("Delete", color = Color.White)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Bulk Tag Dialog
+        if (showBulkTagDialog) {
+            val bulkSelectedTags = remember { mutableStateListOf<TagItem>() }
+            var bulkNewTagName by remember { mutableStateOf("") }
+            val tagColors = listOf("#4B5EAA", "#BB86FC", "#03DAC6", "#FFB347", "#FF6B6B", "#6BCB77", "#FFD93D")
+            var bulkSelectedTagColor by remember { mutableStateOf(tagColors.first()) }
+
+            Dialog(onDismissRequest = { showBulkTagDialog = false }) {
+                GlassCard(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("Add Tags to Selection", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Applying tags to ${selectedFiles.size} items", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+
+                        LazyColumn(modifier = Modifier.height(110.dp)) {
+                            items(predefinedTags) { tag ->
+                                val isChecked = bulkSelectedTags.any { it.name == tag.name }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            if (isChecked) {
+                                                bulkSelectedTags.removeAll { it.name == tag.name }
+                                            } else {
+                                                bulkSelectedTags.add(tag)
+                                            }
+                                        }
+                                        .padding(vertical = 6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(14.dp)
+                                            .background(Color(android.graphics.Color.parseColor(tag.color)), CircleShape)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(tag.name, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                    if (isChecked) {
+                                        Icon(CheckIcon, contentDescription = "Selected", tint = LocalClyoTheme.current.accent2, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+
+                        // Create Custom Tag
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                GlassTextField(
+                                    value = bulkNewTagName,
+                                    onValueChange = { bulkNewTagName = it },
+                                    label = "New tag...",
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            var showColorsMenu by remember { mutableStateOf(false) }
+                            Box {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .background(Color(android.graphics.Color.parseColor(bulkSelectedTagColor)), CircleShape)
+                                        .clickable { showColorsMenu = true }
+                                )
+                                DropdownMenu(
+                                    expanded = showColorsMenu,
+                                    onDismissRequest = { showColorsMenu = false }
+                                ) {
+                                    tagColors.forEach { colorStr ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Box(modifier = Modifier.size(20.dp).background(Color(android.graphics.Color.parseColor(colorStr)), CircleShape))
+                                            },
+                                            onClick = { bulkSelectedTagColor = colorStr; showColorsMenu = false }
+                                        )
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            IconButton(onClick = {
+                                if (bulkNewTagName.isNotBlank()) {
+                                    val newTagObj = TagItem(bulkNewTagName.trim(), bulkSelectedTagColor)
+                                    if (!predefinedTags.any { it.name.lowercase() == newTagObj.name.lowercase() }) {
+                                        scope.launch {
+                                            val updatedPredefined = predefinedTags + newTagObj
+                                            if (savePredefinedTags(connection.serverUrl, connection.token, updatedPredefined)) {
+                                                predefinedTags = fetchPredefinedTags(connection.serverUrl, connection.token)
+                                            }
+                                        }
+                                    }
+                                    if (!bulkSelectedTags.any { it.name.lowercase() == newTagObj.name.lowercase() }) {
+                                        bulkSelectedTags.add(newTagObj)
+                                    }
+                                    bulkNewTagName = ""
+                                }
+                            }) {
+                                Icon(AddIcon, contentDescription = "Add Tag", tint = LocalClyoTheme.current.accent2)
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { showBulkTagDialog = false }) {
+                                Text("Cancel", color = Color(0xFFA0A0C0))
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (bulkSelectedTags.isNotEmpty()) {
+                                        scope.launch {
+                                            var count = 0
+                                            selectedFiles.forEach { name ->
+                                                val file = filesList.find { it.name == name }
+                                                if (file != null) {
+                                                    val currentTags = file.tags
+                                                    val tagsToActuallyAdd = bulkSelectedTags.filter { newTag ->
+                                                        !currentTags.any { it.name.lowercase() == newTag.name.lowercase() }
+                                                    }
+                                                    val updatedTags = currentTags + tagsToActuallyAdd
+                                                    val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                                    if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, tags = updatedTags)) {
+                                                        count++
+                                                    }
+                                                }
+                                            }
+                                            Toast.makeText(context, "Added tags to $count items", Toast.LENGTH_SHORT).show()
+                                            showBulkTagDialog = false
+                                            selectedFiles.clear()
+                                            isSelectionMode = false
+                                            triggerFileRefresh()
+                                        }
+                                    } else {
+                                        showBulkTagDialog = false
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                            ) {
+                                Text("Apply", color = Color(0xFF0F0C1B))
                             }
                         }
                     }
@@ -2025,6 +2998,9 @@ fun FilesTabContent(
     showFavoritesOnly: Boolean,
     isGridView: Boolean,
     autoplayPreviews: Boolean,
+    sortOption: String,
+    isSelectionMode: Boolean,
+    selectedFiles: Set<String>,
     onPathChanged: (String) -> Unit,
     onFileClick: (CloudFile) -> Unit,
     onToggleFavorite: (CloudFile, Boolean) -> Unit,
@@ -2032,12 +3008,33 @@ fun FilesTabContent(
     onCopyLink: (CloudFile) -> Unit,
     onDownload: (CloudFile) -> Unit,
     onDelete: (CloudFile) -> Unit,
-    onEditTags: (CloudFile) -> Unit
+    onEditTags: (CloudFile) -> Unit,
+    onToggleSelection: (CloudFile) -> Unit,
+    onLongClick: (CloudFile) -> Unit,
+    onRename: (CloudFile) -> Unit,
+    onMove: (CloudFile) -> Unit,
+    onDownloadZip: (CloudFile) -> Unit
 ) {
-    val filteredFiles = files.filter { file ->
-        val matchesSearch = file.name.contains(searchQuery, ignoreCase = true)
-        val matchesFav = !showFavoritesOnly || file.isFavourite
-        matchesSearch && matchesFav
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    val sortedFiles = remember(files, searchQuery, showFavoritesOnly, sortOption) {
+        files.filter { file ->
+            val matchesSearch = file.name.contains(searchQuery, ignoreCase = true) ||
+                                file.tags.any { it.name.contains(searchQuery, ignoreCase = true) }
+            val matchesFav = !showFavoritesOnly || file.isFavourite
+            matchesSearch && matchesFav
+        }.sortedWith { a, b ->
+            if (a.isFolder != b.isFolder) {
+                if (a.isFolder) -1 else 1
+            } else {
+                when (sortOption) {
+                    "size" -> b.size.compareTo(a.size)
+                    "date" -> b.lastModified.compareTo(a.lastModified)
+                    else -> a.name.compareTo(b.name, ignoreCase = true)
+                }
+            }
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -2078,7 +3075,7 @@ fun FilesTabContent(
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
             }
-        } else if (filteredFiles.isEmpty()) {
+        } else if (sortedFiles.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No files found", color = Color(0xFFA0A0C0))
             }
@@ -2092,25 +3089,37 @@ fun FilesTabContent(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(items = filteredFiles, key = { it.name }) { file ->
+                    items(items = sortedFiles, key = { it.name }) { file ->
                         var isMenuExpanded by remember { mutableStateOf(false) }
                         val fileRelativePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                        val isSelected = selectedFiles.contains(file.name)
 
                         GlassCard(
                             shape = RoundedCornerShape(16.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .then(
+                                    if (isSelected) Modifier.border(
+                                        width = 2.dp,
+                                        color = LocalClyoTheme.current.accent1,
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) else Modifier
+                                )
                                 .combinedClickable(
                                     onClick = {
-                                        if (file.isFolder) {
-                                            val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                            onPathChanged(newPath)
+                                        if (isSelectionMode) {
+                                            onToggleSelection(file)
                                         } else {
-                                            onFileClick(file)
+                                            if (file.isFolder) {
+                                                val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                                onPathChanged(newPath)
+                                            } else {
+                                                onFileClick(file)
+                                            }
                                         }
                                     },
                                     onLongClick = {
-                                        onEditTags(file)
+                                        onLongClick(file)
                                     }
                                 )
                         ) {
@@ -2173,6 +3182,29 @@ fun FilesTabContent(
                                         }
                                     }
 
+                                    // Selection status checkbox overlay (top-left)
+                                    if (isSelectionMode) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopStart)
+                                                .padding(6.dp)
+                                                .size(24.dp)
+                                                .background(
+                                                    if (isSelected) LocalClyoTheme.current.accent1 else Color.Black.copy(alpha = 0.4f),
+                                                    CircleShape
+                                                )
+                                                .clickable { onToggleSelection(file) },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = CheckIcon,
+                                                contentDescription = "Selected",
+                                                tint = if (isSelected) Color(0xFF0F0C1B) else Color.White.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                    }
+
                                     // Star/Favorite top-right overlay
                                     Box(
                                         modifier = Modifier
@@ -2192,10 +3224,10 @@ fun FilesTabContent(
                                     }
 
                                     // Quick Copy Link overlay if shared
-                                    if (file.isPublic) {
+                                    if (file.isPublic && !isSelectionMode) {
                                         Box(
                                             modifier = Modifier
-                                                .align(Alignment.TopStart)
+                                                .align(Alignment.BottomStart)
                                                 .padding(6.dp)
                                                 .size(24.dp)
                                                 .background(Color.Black.copy(alpha = 0.4f), CircleShape)
@@ -2256,13 +3288,26 @@ fun FilesTabContent(
                                                 onClick = { onTogglePublic(file, !file.isPublic); isMenuExpanded = false }
                                             )
                                             DropdownMenuItem(
-                                                text = { Text("Edit Tags", color = LocalClyoTheme.current.accent2, fontSize = 13.sp) },
+                                                text = { Text("Details & Tags", color = LocalClyoTheme.current.accent2, fontSize = 13.sp) },
                                                 onClick = { onEditTags(file); isMenuExpanded = false }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Rename", color = Color.White, fontSize = 13.sp) },
+                                                onClick = { onRename(file); isMenuExpanded = false }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Move", color = Color.White, fontSize = 13.sp) },
+                                                onClick = { onMove(file); isMenuExpanded = false }
                                             )
                                             if (!file.isFolder) {
                                                 DropdownMenuItem(
                                                     text = { Text("Download", color = Color.White, fontSize = 13.sp) },
                                                     onClick = { onDownload(file); isMenuExpanded = false }
+                                                )
+                                            } else {
+                                                DropdownMenuItem(
+                                                    text = { Text("Download ZIP", color = Color.White, fontSize = 13.sp) },
+                                                    onClick = { onDownloadZip(file); isMenuExpanded = false }
                                                 )
                                             }
                                             DropdownMenuItem(
@@ -2302,23 +3347,35 @@ fun FilesTabContent(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(items = filteredFiles, key = { it.name }) { file ->
+                    items(items = sortedFiles, key = { it.name }) { file ->
                         var isMenuExpanded by remember { mutableStateOf(false) }
-                        
+                        val isSelected = selectedFiles.contains(file.name)
+
                         GlassCard(
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .then(
+                                    if (isSelected) Modifier.border(
+                                        width = 1.5.dp,
+                                        color = LocalClyoTheme.current.accent1,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) else Modifier
+                                )
                                 .combinedClickable(
                                     onClick = {
-                                        if (file.isFolder) {
-                                            val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                            onPathChanged(newPath)
+                                        if (isSelectionMode) {
+                                            onToggleSelection(file)
                                         } else {
-                                            onFileClick(file)
+                                            if (file.isFolder) {
+                                                val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                                onPathChanged(newPath)
+                                            } else {
+                                                onFileClick(file)
+                                            }
                                         }
                                     },
                                     onLongClick = {
-                                        onEditTags(file)
+                                        onLongClick(file)
                                     }
                                 )
                         ) {
@@ -2327,13 +3384,25 @@ fun FilesTabContent(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        imageVector = if (file.isFolder) FolderIcon else FileIcon,
-                                        contentDescription = null,
-                                        tint = if (file.isFolder) LocalClyoTheme.current.accent1 else LocalClyoTheme.current.accent2,
-                                        modifier = Modifier.size(32.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
+                                    if (isSelectionMode) {
+                                        IconButton(onClick = { onToggleSelection(file) }, modifier = Modifier.size(32.dp)) {
+                                            Icon(
+                                                imageVector = CheckIcon,
+                                                contentDescription = "Selected",
+                                                tint = if (isSelected) LocalClyoTheme.current.accent1 else Color(0xFFA0A0C0),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                    } else {
+                                        Icon(
+                                            imageVector = if (file.isFolder) FolderIcon else FileIcon,
+                                            contentDescription = null,
+                                            tint = if (file.isFolder) LocalClyoTheme.current.accent1 else LocalClyoTheme.current.accent2,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(12.dp))
+                                    }
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
                                             text = file.name,
@@ -2416,12 +3485,23 @@ fun FilesTabContent(
                                             Text(if (file.isPublic) "Make Private" else "Make Public", color = LocalClyoTheme.current.accent1, fontSize = 12.sp)
                                         }
                                         TextButton(onClick = { onEditTags(file); isMenuExpanded = false }) {
-                                            Text("Edit Tags", color = LocalClyoTheme.current.accent2, fontSize = 12.sp)
+                                            Text("Details", color = LocalClyoTheme.current.accent2, fontSize = 12.sp)
                                         }
-                                        if (!file.isFolder) {
-                                            TextButton(onClick = { onDownload(file); isMenuExpanded = false }) {
-                                                Text("Download", color = Color.White, fontSize = 12.sp)
+                                        TextButton(onClick = { onRename(file); isMenuExpanded = false }) {
+                                            Text("Rename", color = Color.White, fontSize = 12.sp)
+                                        }
+                                        TextButton(onClick = { onMove(file); isMenuExpanded = false }) {
+                                            Text("Move", color = Color.White, fontSize = 12.sp)
+                                        }
+                                        TextButton(onClick = {
+                                            if (!file.isFolder) {
+                                                onDownload(file)
+                                            } else {
+                                                onDownloadZip(file)
                                             }
+                                            isMenuExpanded = false
+                                        }) {
+                                            Text(if (file.isFolder) "Zip" else "Download", color = Color.White, fontSize = 12.sp)
                                         }
                                         TextButton(onClick = { onDelete(file); isMenuExpanded = false }) {
                                             Text("Delete", color = Color(0xFFFF5252), fontSize = 12.sp)
@@ -3213,6 +4293,7 @@ suspend fun fetchFilesList(serverUrl: String, token: String, path: String): List
             val metaObj = obj.optJSONObject("meta")
             val isPublic = metaObj?.optBoolean("isPublic", false) ?: false
             val isFavourite = metaObj?.optBoolean("isFavourite", false) ?: false
+            val isWallpaper = metaObj?.optBoolean("isWallpaper", false) ?: false
             val description = if (metaObj?.has("description") == true) metaObj.getString("description") else null
             val previewImage = if (metaObj?.has("previewImage") == true) metaObj.getString("previewImage") else null
             val tagsList = mutableListOf<TagItem>()
@@ -3232,6 +4313,7 @@ suspend fun fetchFilesList(serverUrl: String, token: String, path: String): List
                     isFolder = obj.getBoolean("isFolder"),
                     isPublic = isPublic,
                     isFavourite = isFavourite,
+                    isWallpaper = isWallpaper,
                     description = description,
                     tags = tagsList,
                     previewImage = previewImage
@@ -3376,7 +4458,11 @@ suspend fun updateFileMeta(
     filePath: String,
     isPublic: Boolean? = null,
     isFavourite: Boolean? = null,
-    tags: List<TagItem>? = null
+    tags: List<TagItem>? = null,
+    isWallpaper: Boolean? = null,
+    previewImage: String? = null,
+    description: String? = null,
+    clearPreviewImage: Boolean = false
 ): Boolean = withContext(Dispatchers.IO) {
     val url = URL("$serverUrl/api/file-meta")
     val conn = url.openConnection() as HttpURLConnection
@@ -3391,6 +4477,13 @@ suspend fun updateFileMeta(
             put("fullPath", filePath)
             if (isPublic != null) put("isPublic", isPublic)
             if (isFavourite != null) put("isFavourite", isFavourite)
+            if (isWallpaper != null) put("isWallpaper", isWallpaper)
+            if (description != null) put("description", description)
+            if (clearPreviewImage) {
+                put("previewImage", JSONObject.NULL)
+            } else if (previewImage != null) {
+                put("previewImage", previewImage)
+            }
             if (tags != null) {
                 val tagsArr = JSONArray()
                 tags.forEach { tag ->
@@ -3480,55 +4573,11 @@ suspend fun downloadFileToDevice(
     token: String,
     filePath: String,
     fileName: String
-): Boolean = withContext(Dispatchers.IO) {
+): Boolean {
     val encodedSegments = filePath.split('/').map { Uri.encode(it) }
     val cleanPath = encodedSegments.joinToString("/")
-    val url = URL("$serverUrl/file/$cleanPath")
-    var conn: HttpURLConnection? = null
-    var inputStream: java.io.InputStream? = null
-    try {
-        conn = url.openConnection() as HttpURLConnection
-        conn.requestMethod = "GET"
-        conn.connectTimeout = 15000
-        conn.readTimeout = 30000
-        conn.setRequestProperty("Authorization", "Bearer $token")
-
-        if (conn.responseCode != 200) {
-            return@withContext false
-        }
-
-        inputStream = conn.inputStream
-        val extension = MimeTypeMap.getFileExtensionFromUrl(fileName)
-        val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
-
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
-            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-        }
-
-        val resolver = context.contentResolver
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-        if (uri != null) {
-            resolver.openOutputStream(uri)?.use { outputStream ->
-                val buffer = ByteArray(8192)
-                var bytesRead: Int
-                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-                    outputStream.write(buffer, 0, bytesRead)
-                }
-                outputStream.flush()
-            }
-            true
-        } else {
-            false
-        }
-    } catch (e: Exception) {
-        e.printStackTrace()
-        false
-    } finally {
-        inputStream?.close()
-        conn?.disconnect()
-    }
+    val downloadUrl = "$serverUrl/file/$cleanPath"
+    return downloadUrlToDevice(context, token, downloadUrl, fileName)
 }
 
 // Upload file to server using multipart/form-data POST
@@ -3701,3 +4750,238 @@ val CheckIcon: ImageVector
         lineTo(19.59f, 5.59f)
         close()
     }.build()
+
+val SortIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "Sort",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(3f, 18f)
+        lineTo(9f, 18f)
+        lineTo(9f, 16f)
+        lineTo(3f, 16f)
+        close()
+        moveTo(3f, 6f)
+        lineTo(3f, 8f)
+        lineTo(21f, 8f)
+        lineTo(21f, 6f)
+        close()
+        moveTo(3f, 13f)
+        lineTo(15f, 13f)
+        lineTo(15f, 11f)
+        lineTo(3f, 11f)
+        close()
+    }.build()
+
+// New API helper functions for ClyoCloud Android
+
+suspend fun renameFileOrFolder(
+    serverUrl: String,
+    token: String,
+    oldPath: String,
+    newName: String
+): Boolean = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/rename")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "POST"
+    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+    conn.setRequestProperty("Authorization", "Bearer $token")
+    conn.doOutput = true
+    conn.connectTimeout = 10000
+
+    try {
+        val body = JSONObject().apply {
+            put("oldPath", oldPath)
+            put("newName", newName)
+        }
+        val writer = OutputStreamWriter(conn.outputStream, "UTF-8")
+        writer.write(body.toString())
+        writer.flush()
+        writer.close()
+
+        conn.responseCode == 200
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    } finally {
+        conn.disconnect()
+    }
+}
+
+suspend fun moveItems(
+    serverUrl: String,
+    token: String,
+    paths: List<String>,
+    destination: String
+): Boolean = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/move")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "POST"
+    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+    conn.setRequestProperty("Authorization", "Bearer $token")
+    conn.doOutput = true
+    conn.connectTimeout = 10000
+
+    try {
+        val body = JSONObject().apply {
+            val arr = JSONArray()
+            paths.forEach { arr.put(it) }
+            put("paths", arr)
+            put("destination", destination)
+        }
+        val writer = OutputStreamWriter(conn.outputStream, "UTF-8")
+        writer.write(body.toString())
+        writer.flush()
+        writer.close()
+
+        conn.responseCode == 200
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    } finally {
+        conn.disconnect()
+    }
+}
+
+suspend fun fetchUserSettings(serverUrl: String, token: String): JSONObject? = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/user-settings")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "GET"
+    conn.connectTimeout = 10000
+    conn.readTimeout = 10000
+    conn.setRequestProperty("Authorization", "Bearer $token")
+
+    try {
+        if (conn.responseCode != 200) {
+            return@withContext null
+        }
+        val reader = BufferedReader(InputStreamReader(conn.inputStream))
+        val response = StringBuilder()
+        var line: String?
+        while (reader.readLine().also { line = it } != null) {
+            response.append(line)
+        }
+        reader.close()
+        JSONObject(response.toString())
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    } finally {
+        conn.disconnect()
+    }
+}
+
+suspend fun saveUserSettings(serverUrl: String, token: String, settings: JSONObject): Boolean = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/user-settings")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "POST"
+    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+    conn.setRequestProperty("Authorization", "Bearer $token")
+    conn.doOutput = true
+    conn.connectTimeout = 10000
+
+    try {
+        val writer = OutputStreamWriter(conn.outputStream, "UTF-8")
+        writer.write(settings.toString())
+        writer.flush()
+        writer.close()
+
+        conn.responseCode == 200
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    } finally {
+        conn.disconnect()
+    }
+}
+
+suspend fun savePredefinedTags(serverUrl: String, token: String, tags: List<TagItem>): Boolean = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/tags")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "POST"
+    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+    conn.setRequestProperty("Authorization", "Bearer $token")
+    conn.doOutput = true
+    conn.connectTimeout = 10000
+
+    try {
+        val body = JSONObject().apply {
+            val arr = JSONArray()
+            tags.forEach { tag ->
+                arr.put(JSONObject().apply {
+                    put("name", tag.name)
+                    put("color", tag.color)
+                })
+            }
+            put("tags", arr)
+        }
+        val writer = OutputStreamWriter(conn.outputStream, "UTF-8")
+        writer.write(body.toString())
+        writer.flush()
+        writer.close()
+
+        conn.responseCode == 200
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    } finally {
+        conn.disconnect()
+    }
+}
+
+suspend fun downloadUrlToDevice(
+    context: Context,
+    token: String,
+    downloadUrl: String,
+    fileName: String
+): Boolean = withContext(Dispatchers.IO) {
+    val url = URL(downloadUrl)
+    var conn: HttpURLConnection? = null
+    var inputStream: java.io.InputStream? = null
+    try {
+        conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "GET"
+        conn.connectTimeout = 15000
+        conn.readTimeout = 60000
+        conn.setRequestProperty("Authorization", "Bearer $token")
+
+        if (conn.responseCode != 200) {
+            return@withContext false
+        }
+
+        inputStream = conn.inputStream
+        val extension = MimeTypeMap.getFileExtensionFromUrl(fileName)
+        val mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension) ?: "application/octet-stream"
+
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+
+        val resolver = context.contentResolver
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+        if (uri != null) {
+            resolver.openOutputStream(uri)?.use { outputStream ->
+                val buffer = ByteArray(8192)
+                var bytesRead: Int
+                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                    outputStream.write(buffer, 0, bytesRead)
+                }
+                outputStream.flush()
+            }
+            true
+        } else {
+            false
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    } finally {
+        inputStream?.close()
+        conn?.disconnect()
+    }
+}
