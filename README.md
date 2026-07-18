@@ -61,7 +61,12 @@ graph TD
 *   **Android SDK** (API Level 24+ supported, API 34 target)
 *   **ClyoCloud Server**: A running instance of ClyoCloud accessible over the network.
 
-### 💻 Build & Install
+### 📦 Pre-built APKs
+
+For automatically built APKs from the OneDev workflow, download the latest artifacts directly:
+*   [Latest APK Artifacts](https://weexnes.dev/project/ClyoCloudAndroid#artifacts)
+
+### 💻 Build & Install from Source
 
 1.  **Clone the Repository** (if not already done):
     ```bash
