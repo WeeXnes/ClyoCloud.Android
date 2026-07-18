@@ -17,6 +17,8 @@ import android.widget.Toast
 import android.widget.VideoView
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
@@ -116,6 +118,29 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 // Custom Vector Icons for clean build without extra material-icons-extended dependency
+val UploadIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "Upload",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(9f, 16f)
+        lineTo(15f, 16f)
+        lineTo(15f, 10f)
+        lineTo(19f, 10f)
+        lineTo(12f, 3f)
+        lineTo(5f, 10f)
+        lineTo(9f, 10f)
+        close()
+        moveTo(5f, 18f)
+        lineTo(19f, 18f)
+        lineTo(19f, 20f)
+        lineTo(5f, 20f)
+        close()
+    }.build()
+
 val FolderIcon: ImageVector
     get() = ImageVector.Builder(
         name = "Folder",
@@ -1009,6 +1034,30 @@ fun DashboardScreen(
     var activeViewerFile by remember { mutableStateOf<CloudFile?>(null) }
     var activeViewerMedia by remember { mutableStateOf<MediaItem?>(null) }
 
+    val selectFileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                Toast.makeText(context, "Uploading file...", Toast.LENGTH_SHORT).show()
+                val success = uploadFileToServer(context, connection.serverUrl, connection.token, currentPath, uri)
+                if (success) {
+                    Toast.makeText(context, "Upload complete", Toast.LENGTH_SHORT).show()
+                    isFilesLoading = true
+                    try {
+                        filesList = fetchFilesList(connection.serverUrl, connection.token, currentPath)
+                    } catch (e: Exception) {
+                        Log.e("ClyoCloudAndroid", "Upload refresh error", e)
+                    } finally {
+                        isFilesLoading = false
+                    }
+                } else {
+                    Toast.makeText(context, "Upload failed", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     // Fetch predefined tags once
     LaunchedEffect(Unit) {
         predefinedTags = fetchPredefinedTags(connection.serverUrl, connection.token)
@@ -1118,6 +1167,13 @@ fun DashboardScreen(
                     }
 
                     if (currentTab == DashboardTab.Files) {
+                        IconButton(onClick = { selectFileLauncher.launch("*/*") }) {
+                            Icon(
+                                imageVector = UploadIcon,
+                                contentDescription = "Upload File",
+                                tint = Color(0xFFBB86FC)
+                            )
+                        }
                         IconButton(onClick = { showCreateFolderDialog = true }) {
                             Icon(
                                 imageVector = AddIcon,
@@ -2634,6 +2690,76 @@ suspend fun downloadFileToDevice(
     } finally {
         inputStream?.close()
         conn?.disconnect()
+    }
+}
+
+// Upload file to server using multipart/form-data POST
+suspend fun uploadFileToServer(
+    context: Context,
+    serverUrl: String,
+    token: String,
+    targetPath: String,
+    fileUri: Uri
+): Boolean = withContext(Dispatchers.IO) {
+    val resolver = context.contentResolver
+    var fileName = "upload_file"
+    resolver.query(fileUri, null, null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            if (nameIndex != -1) {
+                fileName = cursor.getString(nameIndex)
+            }
+        }
+    }
+
+    val url = URL("$serverUrl/api/upload")
+    val conn = url.openConnection() as HttpURLConnection
+    val boundary = "Boundary-${System.currentTimeMillis()}"
+    conn.requestMethod = "POST"
+    conn.doOutput = true
+    conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
+    conn.setRequestProperty("Authorization", "Bearer $token")
+    conn.connectTimeout = 15000
+
+    try {
+        val outputStream = conn.outputStream
+        val writer = OutputStreamWriter(outputStream, "UTF-8")
+
+        // Write path field
+        writer.write("--$boundary\r\n")
+        writer.write("Content-Disposition: form-data; name=\"path\"\r\n\r\n")
+        writer.write(targetPath)
+        writer.write("\r\n")
+        writer.flush()
+
+        // Write files header
+        writer.write("--$boundary\r\n")
+        writer.write("Content-Disposition: form-data; name=\"files\"; filename=\"$fileName\"\r\n")
+        val mimeType = resolver.getType(fileUri) ?: "application/octet-stream"
+        writer.write("Content-Type: $mimeType\r\n\r\n")
+        writer.flush()
+
+        // Write file bytes
+        resolver.openInputStream(fileUri)?.use { inputStream ->
+            val buffer = ByteArray(8192)
+            var bytesRead: Int
+            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                outputStream.write(buffer, 0, bytesRead)
+            }
+            outputStream.flush()
+        }
+
+        // End boundaries
+        writer.write("\r\n--$boundary--\r\n")
+        writer.flush()
+        writer.close()
+
+        conn.responseCode == 200
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    } finally {
+        conn.disconnect()
     }
 }
 
