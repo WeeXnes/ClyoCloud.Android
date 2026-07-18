@@ -1034,25 +1034,58 @@ fun DashboardScreen(
     var activeViewerFile by remember { mutableStateOf<CloudFile?>(null) }
     var activeViewerMedia by remember { mutableStateOf<MediaItem?>(null) }
 
-    val selectFileLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri != null) {
+    var uploadProgressText by remember { mutableStateOf<String?>(null) }
+
+    val selectFilesLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (uris.isNotEmpty()) {
             scope.launch {
-                Toast.makeText(context, "Uploading file...", Toast.LENGTH_SHORT).show()
-                val success = uploadFileToServer(context, connection.serverUrl, connection.token, currentPath, uri)
-                if (success) {
-                    Toast.makeText(context, "Upload complete", Toast.LENGTH_SHORT).show()
-                    isFilesLoading = true
-                    try {
-                        filesList = fetchFilesList(connection.serverUrl, connection.token, currentPath)
-                    } catch (e: Exception) {
-                        Log.e("ClyoCloudAndroid", "Upload refresh error", e)
-                    } finally {
-                        isFilesLoading = false
+                var successCount = 0
+                val total = uris.size
+                
+                for ((index, uri) in uris.withIndex()) {
+                    val resolver = context.contentResolver
+                    var displayName = "file_${index + 1}"
+                    resolver.query(uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                            if (nameIndex != -1) {
+                                displayName = cursor.getString(nameIndex)
+                            }
+                        }
                     }
-                } else {
-                    Toast.makeText(context, "Upload failed", Toast.LENGTH_SHORT).show()
+
+                    uploadProgressText = "Uploading $displayName (${index + 1}/$total) - 0%"
+                    
+                    val success = uploadFileToServer(
+                        context = context,
+                        serverUrl = connection.serverUrl,
+                        token = connection.token,
+                        targetPath = currentPath,
+                        fileUri = uri,
+                        fileName = displayName,
+                        fileIndex = index + 1,
+                        totalFiles = total,
+                        onProgress = { name, fileIdx, totalF, percent ->
+                            uploadProgressText = "Uploading $name ($fileIdx/$totalF) - $percent%"
+                        }
+                    )
+                    if (success) {
+                        successCount++
+                    }
+                }
+                
+                uploadProgressText = null
+                Toast.makeText(context, "Uploaded $successCount/$total files", Toast.LENGTH_SHORT).show()
+                
+                isFilesLoading = true
+                try {
+                    filesList = fetchFilesList(connection.serverUrl, connection.token, currentPath)
+                } catch (e: Exception) {
+                    Log.e("ClyoCloudAndroid", "Upload refresh error", e)
+                } finally {
+                    isFilesLoading = false
                 }
             }
         }
@@ -1167,7 +1200,7 @@ fun DashboardScreen(
                     }
 
                     if (currentTab == DashboardTab.Files) {
-                        IconButton(onClick = { selectFileLauncher.launch("*/*") }) {
+                        IconButton(onClick = { selectFilesLauncher.launch("*/*") }) {
                             Icon(
                                 imageVector = UploadIcon,
                                 contentDescription = "Upload File",
@@ -1414,6 +1447,28 @@ fun DashboardScreen(
                                 Text("Create", color = Color(0xFF0F0C1B))
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        // Upload Progress Dialog
+        if (uploadProgressText != null) {
+            Dialog(onDismissRequest = {}) {
+                GlassCard(modifier = Modifier.padding(16.dp)) {
+                    Column(
+                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Text("Uploading Files", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(
+                            text = uploadProgressText ?: "",
+                            color = Color(0xFFA0A0C0),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        CircularProgressIndicator(color = Color(0xFFBB86FC))
                     }
                 }
             }
@@ -2699,15 +2754,21 @@ suspend fun uploadFileToServer(
     serverUrl: String,
     token: String,
     targetPath: String,
-    fileUri: Uri
+    fileUri: Uri,
+    fileName: String,
+    fileIndex: Int,
+    totalFiles: Int,
+    onProgress: (String, Int, Int, Int) -> Unit
 ): Boolean = withContext(Dispatchers.IO) {
     val resolver = context.contentResolver
-    var fileName = "upload_file"
+
+    // Get size
+    var fileSize = 0L
     resolver.query(fileUri, null, null, null, null)?.use { cursor ->
         if (cursor.moveToFirst()) {
-            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-            if (nameIndex != -1) {
-                fileName = cursor.getString(nameIndex)
+            val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+            if (sizeIndex != -1) {
+                fileSize = cursor.getLong(sizeIndex)
             }
         }
     }
@@ -2739,12 +2800,18 @@ suspend fun uploadFileToServer(
         writer.write("Content-Type: $mimeType\r\n\r\n")
         writer.flush()
 
-        // Write file bytes
+        // Write file bytes with progress updates
         resolver.openInputStream(fileUri)?.use { inputStream ->
             val buffer = ByteArray(8192)
             var bytesRead: Int
+            var totalBytesSent = 0L
             while (inputStream.read(buffer).also { bytesRead = it } != -1) {
                 outputStream.write(buffer, 0, bytesRead)
+                totalBytesSent += bytesRead
+                if (fileSize > 0) {
+                    val percent = ((totalBytesSent * 100) / fileSize).toInt()
+                    onProgress(fileName, fileIndex, totalFiles, percent)
+                }
             }
             outputStream.flush()
         }
