@@ -53,6 +53,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -102,6 +103,7 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -839,20 +841,54 @@ fun GlassBackground(content: @Composable () -> Unit) {
 fun GlassCard(
     modifier: Modifier = Modifier,
     shape: Shape = RoundedCornerShape(24.dp),
-    borderBrush: Brush = Brush.linearGradient(
-        colors = listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0.02f))
-    ),
-    containerColor: Color = Color.White.copy(alpha = 0.05f),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(
-        modifier = modifier
-            .border(1.dp, borderBrush, shape),
-        shape = shape,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        content = { Column(content = content) }
-    )
+    val theme = LocalClyoTheme.current
+    // Layered frosted glass:
+    // Layer 1 – blurred frost base (blurs the layer's own painted surface, simulating frosted glass)
+    // Layer 2 – a subtle theme-tinted top glaze
+    // Layer 3 – sharp content on top, untouched by blur
+    Box(
+        modifier = modifier.clip(shape)
+    ) {
+        // Frost layer — blurred semi-opaque white, creates the frosted look
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.linearGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.18f),
+                            Color.White.copy(alpha = 0.08f)
+                        )
+                    )
+                )
+                .blur(radius = 20.dp)
+        )
+        // Glaze layer — theme-tinted overlay for colour
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(theme.accent1.copy(alpha = 0.04f))
+        )
+        // Border ring
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .border(
+                    width = 1.dp,
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            theme.accent1.copy(alpha = 0.35f),
+                            Color.White.copy(alpha = 0.06f)
+                        )
+                    ),
+                    shape = shape
+                )
+        )
+        // Sharp content
+        Column(modifier = Modifier.fillMaxWidth(), content = content)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -866,6 +902,7 @@ fun GlassTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     modifier: Modifier = Modifier
 ) {
+    val theme = LocalClyoTheme.current
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
@@ -878,11 +915,11 @@ fun GlassTextField(
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
             focusedTextColor = Color(0xFFF3F3F7),
             unfocusedTextColor = Color(0xFFF3F3F7),
-            focusedBorderColor = Color(0xFFBB86FC),
+            focusedBorderColor = theme.accent1,
             unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
-            focusedLabelColor = Color(0xFFBB86FC),
+            focusedLabelColor = theme.accent1,
             unfocusedLabelColor = Color(0xFFA0A0C0),
-            cursorColor = Color(0xFFBB86FC)
+            cursorColor = theme.accent1
         )
     )
 }
@@ -972,14 +1009,14 @@ fun LoginScreen(onLoginSuccess: (CloudConnection) -> Unit) {
                         text = "CLYO",
                         style = MaterialTheme.typography.displaySmall,
                         fontWeight = FontWeight.Black,
-                        color = Color(0xFFBB86FC),
+                        color = LocalClyoTheme.current.accent1,
                         letterSpacing = 4.sp
                     )
                     Text(
                         text = "CLOUD BROWSER",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFF03DAC6),
+                        color = LocalClyoTheme.current.accent2,
                         letterSpacing = 2.sp,
                         modifier = Modifier.padding(bottom = 16.dp)
                     )
@@ -1078,9 +1115,9 @@ fun LoginScreen(onLoginSuccess: (CloudConnection) -> Unit) {
                                 .height(54.dp),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFBB86FC),
+                                containerColor = LocalClyoTheme.current.accent1,
                                 contentColor = Color(0xFF0F0C1B),
-                                disabledContainerColor = Color(0xFFBB86FC).copy(alpha = 0.3f)
+                                disabledContainerColor = LocalClyoTheme.current.accent1.copy(alpha = 0.3f)
                             )
                         ) {
                             if (isLoading) {
@@ -1161,9 +1198,9 @@ fun LoginScreen(onLoginSuccess: (CloudConnection) -> Unit) {
                                 .height(54.dp),
                             shape = RoundedCornerShape(16.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFBB86FC),
+                                containerColor = LocalClyoTheme.current.accent1,
                                 contentColor = Color(0xFF0F0C1B),
-                                disabledContainerColor = Color(0xFFBB86FC).copy(alpha = 0.3f)
+                                disabledContainerColor = LocalClyoTheme.current.accent1.copy(alpha = 0.3f)
                             )
                         ) {
                             if (isLoading) {
@@ -1181,7 +1218,7 @@ fun LoginScreen(onLoginSuccess: (CloudConnection) -> Unit) {
                             },
                             enabled = !isLoading
                         ) {
-                            Text("Back to Login", color = Color(0xFF03DAC6))
+                            Text("Back to Login", color = LocalClyoTheme.current.accent2)
                         }
                     }
                 }
@@ -1195,7 +1232,8 @@ fun LoginScreen(onLoginSuccess: (CloudConnection) -> Unit) {
 @Composable
 fun DashboardScreen(
     connection: CloudConnection?,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    onThemeChange: (ClyoTheme) -> Unit = {}
 ) {
     if (connection == null) return
     val context = LocalContext.current
@@ -1402,28 +1440,28 @@ fun DashboardScreen(
                             Icon(
                                 imageVector = if (isGridView) ListViewIcon else GridViewIcon,
                                 contentDescription = "Toggle View Mode",
-                                tint = Color(0xFFBB86FC)
+                                tint = LocalClyoTheme.current.accent1
                             )
                         }
                         IconButton(onClick = { autoplayPreviews = !autoplayPreviews }) {
                             Icon(
                                 imageVector = AutoplayIcon,
                                 contentDescription = "Autoplay Previews",
-                                tint = if (autoplayPreviews) Color(0xFF03DAC6) else Color(0xFFA0A0C0)
+                                tint = if (autoplayPreviews) LocalClyoTheme.current.accent2 else Color(0xFFA0A0C0)
                             )
                         }
                         IconButton(onClick = { selectFilesLauncher.launch("*/*") }) {
                             Icon(
                                 imageVector = UploadIcon,
                                 contentDescription = "Upload File",
-                                tint = Color(0xFFBB86FC)
+                                tint = LocalClyoTheme.current.accent1
                             )
                         }
                         IconButton(onClick = { showCreateFolderDialog = true }) {
                             Icon(
                                 imageVector = AddIcon,
                                 contentDescription = "Create Folder",
-                                tint = Color(0xFF03DAC6)
+                                tint = LocalClyoTheme.current.accent2
                             )
                         }
                     }
@@ -1585,59 +1623,89 @@ fun DashboardScreen(
                     DashboardTab.Settings -> {
                         SettingsTabContent(
                             connection = connection,
-                            onDisconnect = onDisconnect
+                            onDisconnect = onDisconnect,
+                            onThemeChange = onThemeChange
                         )
                     }
                 }
             }
 
-            // Bottom Navigation Bar
-            NavigationBar(
-                containerColor = Color.White.copy(alpha = 0.05f),
+            // Bottom Navigation Bar — frosted glass with theme colours
+            val theme = LocalClyoTheme.current
+            Box(
                 modifier = Modifier
-                    .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
-                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)),
-                tonalElevation = 0.dp
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             ) {
-                NavigationBarItem(
-                    selected = currentTab == DashboardTab.Files,
-                    onClick = { currentTab = DashboardTab.Files },
-                    icon = { Icon(FolderIcon, contentDescription = "Files", modifier = Modifier.size(22.dp)) },
-                    label = { Text("Files") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color(0xFFBB86FC),
-                        selectedTextColor = Color(0xFFBB86FC),
-                        unselectedIconColor = Color(0xFFA0A0C0),
-                        unselectedTextColor = Color(0xFFA0A0C0),
-                        indicatorColor = Color(0xFFBB86FC).copy(alpha = 0.1f)
-                    )
+                // Frost layer
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(Color.White.copy(alpha = 0.15f))
+                        .blur(radius = 24.dp)
                 )
-                NavigationBarItem(
-                    selected = currentTab == DashboardTab.Media,
-                    onClick = { currentTab = DashboardTab.Media },
-                    icon = { Icon(PlayIcon, contentDescription = "Media", modifier = Modifier.size(22.dp)) },
-                    label = { Text("Media") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color(0xFFBB86FC),
-                        selectedTextColor = Color(0xFFBB86FC),
-                        unselectedIconColor = Color(0xFFA0A0C0),
-                        unselectedTextColor = Color(0xFFA0A0C0),
-                        indicatorColor = Color(0xFFBB86FC).copy(alpha = 0.1f)
-                    )
+                // Theme tint
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(theme.accent1.copy(alpha = 0.03f))
                 )
-                NavigationBarItem(
-                    selected = currentTab == DashboardTab.Settings,
-                    onClick = { currentTab = DashboardTab.Settings },
-                    icon = { Icon(SettingsIcon, contentDescription = "Settings", modifier = Modifier.size(22.dp)) },
-                    label = { Text("Settings") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = Color(0xFFBB86FC),
-                        selectedTextColor = Color(0xFFBB86FC),
-                        unselectedIconColor = Color(0xFFA0A0C0),
-                        unselectedTextColor = Color(0xFFA0A0C0),
-                        indicatorColor = Color(0xFFBB86FC).copy(alpha = 0.1f)
-                    )
+                // Top edge border
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .border(
+                            width = 1.dp,
+                            brush = Brush.linearGradient(
+                                listOf(theme.accent1.copy(alpha = 0.3f), Color.White.copy(alpha = 0.05f))
+                            ),
+                            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                        )
                 )
+                NavigationBar(
+                    containerColor = Color.Transparent,
+                    tonalElevation = 0.dp
+                ) {
+                    NavigationBarItem(
+                        selected = currentTab == DashboardTab.Files,
+                        onClick = { currentTab = DashboardTab.Files },
+                        icon = { Icon(FolderIcon, contentDescription = "Files", modifier = Modifier.size(22.dp)) },
+                        label = { Text("Files") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = theme.accent1,
+                            selectedTextColor = theme.accent1,
+                            unselectedIconColor = Color(0xFFA0A0C0),
+                            unselectedTextColor = Color(0xFFA0A0C0),
+                            indicatorColor = theme.accent1.copy(alpha = 0.12f)
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == DashboardTab.Media,
+                        onClick = { currentTab = DashboardTab.Media },
+                        icon = { Icon(PlayIcon, contentDescription = "Media", modifier = Modifier.size(22.dp)) },
+                        label = { Text("Media") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = theme.accent1,
+                            selectedTextColor = theme.accent1,
+                            unselectedIconColor = Color(0xFFA0A0C0),
+                            unselectedTextColor = Color(0xFFA0A0C0),
+                            indicatorColor = theme.accent1.copy(alpha = 0.12f)
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == DashboardTab.Settings,
+                        onClick = { currentTab = DashboardTab.Settings },
+                        icon = { Icon(SettingsIcon, contentDescription = "Settings", modifier = Modifier.size(22.dp)) },
+                        label = { Text("Settings") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = theme.accent1,
+                            selectedTextColor = theme.accent1,
+                            unselectedIconColor = Color(0xFFA0A0C0),
+                            unselectedTextColor = Color(0xFFA0A0C0),
+                            indicatorColor = theme.accent1.copy(alpha = 0.12f)
+                        )
+                    )
+                }
             }
         }
 
@@ -1679,7 +1747,7 @@ fun DashboardScreen(
                                         }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBB86FC))
+                                colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
                             ) {
                                 Text("Create", color = Color(0xFF0F0C1B))
                             }
@@ -1705,7 +1773,7 @@ fun DashboardScreen(
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        CircularProgressIndicator(color = Color(0xFFBB86FC))
+                        CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
                     }
                 }
             }
@@ -1753,8 +1821,8 @@ fun DashboardScreen(
                                     checked = isPublicState,
                                     onCheckedChange = { isPublicState = it },
                                     colors = androidx.compose.material3.SwitchDefaults.colors(
-                                        checkedThumbColor = Color(0xFF03DAC6),
-                                        checkedTrackColor = Color(0xFF03DAC6).copy(alpha = 0.4f)
+                                        checkedThumbColor = LocalClyoTheme.current.accent2,
+                                        checkedTrackColor = LocalClyoTheme.current.accent2.copy(alpha = 0.4f)
                                     )
                                 )
                             }
@@ -1766,13 +1834,13 @@ fun DashboardScreen(
                                 ) {
                                     Text(
                                         text = "Public link is active",
-                                        color = Color(0xFF03DAC6),
+                                        color = LocalClyoTheme.current.accent2,
                                         fontSize = 12.sp,
                                         modifier = Modifier.weight(1f)
                                     )
                                     Button(
                                         onClick = { shareText(context, publicUrl, "Share link") },
-                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF03DAC6)),
+                                        colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent2),
                                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                                         modifier = Modifier.height(28.dp)
                                     ) {
@@ -1785,7 +1853,7 @@ fun DashboardScreen(
                         HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 
                         // Tags Section
-                        Text("Tags", color = Color(0xFFBB86FC), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Text("Tags", color = LocalClyoTheme.current.accent1, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
                         LazyColumn(modifier = Modifier.height(140.dp)) {
                             items(predefinedTags) { tag ->
                                 val isChecked = selectedTags.any { it.name == tag.name }
@@ -1810,7 +1878,7 @@ fun DashboardScreen(
                                     Spacer(modifier = Modifier.width(12.dp))
                                     Text(tag.name, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
                                     if (isChecked) {
-                                        Icon(CheckIcon, contentDescription = "Selected", tint = Color(0xFF03DAC6), modifier = Modifier.size(16.dp))
+                                        Icon(CheckIcon, contentDescription = "Selected", tint = LocalClyoTheme.current.accent2, modifier = Modifier.size(16.dp))
                                     }
                                 }
                             }
@@ -1836,7 +1904,7 @@ fun DashboardScreen(
                                         }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFBB86FC))
+                                colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
                             ) {
                                 Text("Save", color = Color(0xFF0F0C1B))
                             }
@@ -1983,7 +2051,7 @@ fun FilesTabContent(
         ) {
             Text(
                 text = "Root",
-                color = if (currentPath.isEmpty()) Color(0xFFBB86FC) else Color.White,
+                color = if (currentPath.isEmpty()) LocalClyoTheme.current.accent1 else Color.White,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .clickable { onPathChanged("") }
@@ -1994,7 +2062,7 @@ fun FilesTabContent(
                 Text(" > ", color = Color(0xFFA0A0C0), modifier = Modifier.padding(horizontal = 4.dp))
                 Text(
                     text = segment,
-                    color = if (index == pathStack.lastIndex) Color(0xFFBB86FC) else Color.White,
+                    color = if (index == pathStack.lastIndex) LocalClyoTheme.current.accent1 else Color.White,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .clickable {
@@ -2008,7 +2076,7 @@ fun FilesTabContent(
 
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = Color(0xFFBB86FC))
+                CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
             }
         } else if (filteredFiles.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -2068,7 +2136,7 @@ fun FilesTabContent(
                                             Icon(
                                                 imageVector = FolderIcon,
                                                 contentDescription = null,
-                                                tint = Color(0xFFBB86FC),
+                                                tint = LocalClyoTheme.current.accent1,
                                                 modifier = Modifier
                                                     .size(36.dp)
                                                     .align(Alignment.Center)
@@ -2097,7 +2165,7 @@ fun FilesTabContent(
                                             Icon(
                                                 imageVector = if (isVideoFile(file.name)) PlayIcon else FileIcon,
                                                 contentDescription = null,
-                                                tint = Color(0xFF03DAC6),
+                                                tint = LocalClyoTheme.current.accent2,
                                                 modifier = Modifier
                                                     .size(36.dp)
                                                     .align(Alignment.Center)
@@ -2137,7 +2205,7 @@ fun FilesTabContent(
                                             Icon(
                                                 imageVector = ShareIcon,
                                                 contentDescription = "Copy Link",
-                                                tint = Color(0xFF03DAC6),
+                                                tint = LocalClyoTheme.current.accent2,
                                                 modifier = Modifier.size(12.dp)
                                             )
                                         }
@@ -2184,11 +2252,11 @@ fun FilesTabContent(
                                             modifier = Modifier.background(Color(0xFF1E1E2C))
                                         ) {
                                             DropdownMenuItem(
-                                                text = { Text(if (file.isPublic) "Make Private" else "Make Public", color = Color(0xFFBB86FC), fontSize = 13.sp) },
+                                                text = { Text(if (file.isPublic) "Make Private" else "Make Public", color = LocalClyoTheme.current.accent1, fontSize = 13.sp) },
                                                 onClick = { onTogglePublic(file, !file.isPublic); isMenuExpanded = false }
                                             )
                                             DropdownMenuItem(
-                                                text = { Text("Edit Tags", color = Color(0xFF03DAC6), fontSize = 13.sp) },
+                                                text = { Text("Edit Tags", color = LocalClyoTheme.current.accent2, fontSize = 13.sp) },
                                                 onClick = { onEditTags(file); isMenuExpanded = false }
                                             )
                                             if (!file.isFolder) {
@@ -2262,7 +2330,7 @@ fun FilesTabContent(
                                     Icon(
                                         imageVector = if (file.isFolder) FolderIcon else FileIcon,
                                         contentDescription = null,
-                                        tint = if (file.isFolder) Color(0xFFBB86FC) else Color(0xFF03DAC6),
+                                        tint = if (file.isFolder) LocalClyoTheme.current.accent1 else LocalClyoTheme.current.accent2,
                                         modifier = Modifier.size(32.dp)
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
@@ -2286,7 +2354,7 @@ fun FilesTabContent(
                                             if (file.isPublic) {
                                                 Text(
                                                     text = "Shared",
-                                                    color = Color(0xFF03DAC6),
+                                                    color = LocalClyoTheme.current.accent2,
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold
                                                 )
@@ -2307,7 +2375,7 @@ fun FilesTabContent(
                                     // Quick share/link button
                                     if (file.isPublic) {
                                         IconButton(onClick = { onCopyLink(file) }) {
-                                            Icon(ShareIcon, contentDescription = "Copy Link", tint = Color(0xFF03DAC6), modifier = Modifier.size(18.dp))
+                                            Icon(ShareIcon, contentDescription = "Copy Link", tint = LocalClyoTheme.current.accent2, modifier = Modifier.size(18.dp))
                                         }
                                     }
 
@@ -2345,10 +2413,10 @@ fun FilesTabContent(
                                         horizontalArrangement = Arrangement.SpaceAround
                                     ) {
                                         TextButton(onClick = { onTogglePublic(file, !file.isPublic); isMenuExpanded = false }) {
-                                            Text(if (file.isPublic) "Make Private" else "Make Public", color = Color(0xFFBB86FC), fontSize = 12.sp)
+                                            Text(if (file.isPublic) "Make Private" else "Make Public", color = LocalClyoTheme.current.accent1, fontSize = 12.sp)
                                         }
                                         TextButton(onClick = { onEditTags(file); isMenuExpanded = false }) {
-                                            Text("Edit Tags", color = Color(0xFF03DAC6), fontSize = 12.sp)
+                                            Text("Edit Tags", color = LocalClyoTheme.current.accent2, fontSize = 12.sp)
                                         }
                                         if (!file.isFolder) {
                                             TextButton(onClick = { onDownload(file); isMenuExpanded = false }) {
@@ -2390,7 +2458,7 @@ fun MediaTabContent(
 
     if (isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Color(0xFFBB86FC))
+            CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
         }
     } else if (filteredMedia.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -2465,7 +2533,7 @@ fun MediaTabContent(
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .padding(8.dp)
-                                        .background(Color(0xFFBB86FC), RoundedCornerShape(4.dp))
+                                        .background(LocalClyoTheme.current.accent1, RoundedCornerShape(4.dp))
                                         .padding(horizontal = 6.dp, vertical = 2.dp)
                                 ) {
                                     Text("SLIDESHOW", color = Color(0xFF0F0C1B), fontSize = 8.sp, fontWeight = FontWeight.Bold)
@@ -2508,58 +2576,135 @@ fun MediaTabContent(
 @Composable
 fun SettingsTabContent(
     connection: CloudConnection,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    onThemeChange: (ClyoTheme) -> Unit = {}
 ) {
-    Box(
+    val theme = LocalClyoTheme.current
+    val context = LocalContext.current
+
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = 20.dp),
+        contentPadding = PaddingValues(vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        GlassCard(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(72.dp)
-                        .background(Color(0xFFBB86FC).copy(alpha = 0.15f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        connection.username.take(2).uppercase(),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 28.sp,
-                        color = Color(0xFFBB86FC)
-                    )
-                }
-
-                Text(connection.username, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                
+        // User info card
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Server Address", color = Color(0xFFA0A0C0), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    Text(connection.serverUrl, color = Color.White, fontSize = 14.sp)
-                }
-
-                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-
-                Button(
-                    onClick = onDisconnect,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .background(theme.accent1.copy(alpha = 0.18f), CircleShape)
+                            .border(2.dp, theme.accent1.copy(alpha = 0.5f), CircleShape),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(ExitIcon, contentDescription = "Logout", modifier = Modifier.size(18.dp))
-                        Text("Disconnect Account", fontWeight = FontWeight.Bold)
+                        Text(
+                            connection.username.take(2).uppercase(),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 28.sp,
+                            color = theme.accent1
+                        )
+                    }
+                    Text(connection.username, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text("SERVER", color = Color(0xFFA0A0C0), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text(connection.serverUrl, color = Color.White, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+
+        // Theme picker card
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .background(theme.accent1.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("🎨", fontSize = 18.sp)
+                        }
+                        Column {
+                            Text("App Theme", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Choose your colour palette", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ClyoThemes.all.forEach { t ->
+                            val isSelected = t.name == theme.name
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onThemeChange(t) },
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            Brush.linearGradient(t.swatchColors)
+                                        )
+                                        .then(
+                                            if (isSelected) Modifier.border(2.5.dp, Color.White, CircleShape)
+                                            else Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isSelected) {
+                                        Text("✓", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                                Text(
+                                    t.displayName,
+                                    color = if (isSelected) theme.accent1 else Color(0xFFA0A0C0),
+                                    fontSize = 9.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Disconnect card
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Button(
+                        onClick = onDisconnect,
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(ExitIcon, contentDescription = "Logout", modifier = Modifier.size(18.dp))
+                            Text("Disconnect Account", fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -2654,7 +2799,7 @@ fun ImmersiveMediaViewer(
                         contentAlignment = Alignment.Center
                     ) {
                         if (isImageLoading) {
-                            CircularProgressIndicator(color = Color(0xFFBB86FC))
+                            CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
                         } else if (localBitmap != null) {
                             Image(
                                 bitmap = localBitmap!!,
@@ -2713,7 +2858,7 @@ fun ImmersiveMediaViewer(
                 }
                 if (currentFile.isPublic) {
                     IconButton(onClick = { onShare(currentFile) }) {
-                        Icon(ShareIcon, contentDescription = "Share", tint = Color(0xFF03DAC6))
+                        Icon(ShareIcon, contentDescription = "Share", tint = LocalClyoTheme.current.accent2)
                     }
                 }
             }
@@ -2847,7 +2992,7 @@ fun AsyncServerImage(
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         if (isLoading) {
-            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = Color(0xFFBB86FC))
+            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = LocalClyoTheme.current.accent1)
         } else if (bitmap != null) {
             Image(
                 bitmap = bitmap!!,
@@ -2928,7 +3073,7 @@ fun RemoteGifPlayer(
         )
     } else {
         Box(modifier = modifier, contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = Color(0xFFBB86FC))
+            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = LocalClyoTheme.current.accent1)
         }
     }
 }
