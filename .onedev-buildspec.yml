@@ -1,6 +1,6 @@
 version: 43
 jobs:
-- name: gradle ci
+- name: ClyoCloudAndroid CI
   steps:
   - type: CheckoutStep
     name: checkout code
@@ -11,7 +11,7 @@ jobs:
     condition: SUCCESSFUL
     optional: false
   - type: CommandStep
-    name: gradle build
+    name: build ClyoCloudAndroid
     runInContainer: false
     interpreter:
       type: DefaultInterpreter
@@ -23,7 +23,7 @@ jobs:
     condition: SUCCESSFUL
     optional: false
   - type: PublishArtifactStep
-    name: Publish Jars
+    name: Publish ClyoCloudAndroid APK
     sourcePath: app/build/outputs/apk/debug
     artifacts: '*'
     condition: SUCCESSFUL
