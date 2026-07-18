@@ -63,9 +63,14 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -141,7 +146,155 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 
-// Custom Vector Icons for clean build without extra material-icons-extended dependency
+val DeleteIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "Delete",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(6f, 19f)
+        curveTo(6f, 20.1f, 6.9f, 21f, 8f, 21f)
+        lineTo(16f, 21f)
+        curveTo(17.1f, 21f, 18f, 20.1f, 18f, 19f)
+        lineTo(18f, 7f)
+        lineTo(6f, 7f)
+        close()
+        moveTo(19f, 4f)
+        lineTo(15.5f, 4f)
+        lineTo(14.5f, 3f)
+        lineTo(9.5f, 3f)
+        lineTo(8.5f, 4f)
+        lineTo(5f, 4f)
+        lineTo(5f, 6f)
+        lineTo(19f, 6f)
+        close()
+    }.build()
+
+val VolumeOffIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "VolumeOff",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(16.5f, 12f)
+        curveTo(16.5f, 10.23f, 15.48f, 8.71f, 14f, 8f)
+        lineTo(14f, 10.27f)
+        lineTo(16.25f, 12.52f)
+        curveTo(16.41f, 12.35f, 16.5f, 12.18f, 16.5f, 12f)
+        close()
+        moveTo(19f, 12f)
+        curveTo(19f, 12.94f, 18.8f, 13.82f, 18.46f, 14.64f)
+        lineTo(19.97f, 16.15f)
+        curveTo(20.63f, 14.91f, 21f, 13.5f, 21f, 12f)
+        curveTo(21f, 7.72f, 18f, 4.14f, 14f, 3.23f)
+        lineTo(14f, 5.29f)
+        curveTo(16.89f, 6.15f, 19f, 8.83f, 19f, 12f)
+        close()
+        moveTo(4.27f, 3f)
+        lineTo(3f, 4.27f)
+        lineTo(7.73f, 9f)
+        lineTo(3f, 9f)
+        lineTo(3f, 15f)
+        lineTo(7f, 15f)
+        lineTo(12f, 20f)
+        lineTo(12f, 13.27f)
+        lineTo(16.25f, 17.52f)
+        curveTo(15.58f, 18.04f, 14.83f, 18.44f, 14f, 18.67f)
+        lineTo(14f, 20.73f)
+        curveTo(15.38f, 20.48f, 16.63f, 19.82f, 17.68f, 18.96f)
+        lineTo(19.73f, 21f)
+        lineTo(21f, 19.73f)
+        lineTo(4.27f, 3f)
+        close()
+        moveTo(12f, 4f)
+        lineTo(9.91f, 6.09f)
+        lineTo(12f, 8.18f)
+        close()
+    }.build()
+
+val VolumeUpIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "VolumeUp",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(3f, 9f)
+        lineTo(3f, 15f)
+        lineTo(7f, 15f)
+        lineTo(12f, 20f)
+        lineTo(12f, 4f)
+        lineTo(7f, 9f)
+        close()
+        moveTo(16.5f, 12f)
+        curveTo(16.5f, 10.23f, 15.48f, 8.71f, 14f, 8f)
+        lineTo(14f, 16f)
+        curveTo(15.48f, 15.29f, 16.5f, 13.77f, 16.5f, 12f)
+        close()
+        moveTo(14f, 3.23f)
+        lineTo(14f, 5.29f)
+        curveTo(16.89f, 6.15f, 19f, 8.83f, 19f, 12f)
+        curveTo(19f, 15.17f, 16.89f, 17.85f, 14f, 18.71f)
+        lineTo(14f, 20.77f)
+        curveTo(18f, 19.86f, 21f, 16.28f, 21f, 12f)
+        curveTo(21f, 7.72f, 18f, 4.14f, 14f, 3.23f)
+        close()
+    }.build()
+
+val RefreshIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "Refresh",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(17.65f, 6.35f)
+        curveTo(16.2f, 4.9f, 14.21f, 4f, 12f, 4f)
+        curveTo(7.58f, 4f, 4.01f, 7.58f, 4.01f, 12f)
+        curveTo(4.01f, 16.42f, 7.58f, 20f, 12f, 20f)
+        curveTo(15.73f, 20f, 18.84f, 17.45f, 19.73f, 14f)
+        lineTo(17.65f, 14f)
+        curveTo(16.83f, 16.33f, 14.61f, 18f, 12f, 18f)
+        curveTo(8.69f, 18f, 6f, 15.31f, 6f, 12f)
+        curveTo(6f, 8.69f, 8.69f, 6f, 12f, 6f)
+        curveTo(13.66f, 6f, 15.14f, 6.69f, 16.22f, 7.78f)
+        lineTo(13f, 11f)
+        lineTo(20f, 11f)
+        lineTo(20f, 4f)
+        close()
+    }.build()
+
+val WarningIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "Warning",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(1f, 21f)
+        lineTo(23f, 21f)
+        lineTo(12f, 2f)
+        close()
+        moveTo(12f, 18f)
+        curveTo(11.45f, 18f, 11f, 17.55f, 11f, 17f)
+        curveTo(11f, 16.45f, 11.45f, 16f, 12f, 16f)
+        curveTo(12.55f, 16f, 13f, 16.45f, 13f, 17f)
+        curveTo(13f, 17.55f, 12.55f, 18f, 12f, 18f)
+        close()
+        moveTo(11f, 10f)
+        lineTo(13f, 10f)
+        lineTo(13f, 14f)
+        lineTo(11f, 14f)
+        close()
+    }.build()
+
 val GridViewIcon: ImageVector
     get() = ImageVector.Builder(
         name = "GridView",
@@ -651,8 +804,14 @@ enum class AppScreen {
     Dashboard
 }
 
+data class MediaListResult(
+    val items: List<MediaItem>,
+    val total: Int
+)
+
 enum class DashboardTab {
     Files,
+    Shorts,
     Media,
     Settings
 }
@@ -1295,6 +1454,16 @@ fun DashboardScreen(
     // Media Tab state
     var mediaList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
     var isMediaLoading by remember { mutableStateOf(false) }
+    var mediaPage by remember { mutableStateOf(1) }
+    var mediaTotalCount by remember { mutableStateOf(0) }
+    val mediaPageSize = 30
+    var allMediaList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+    var isAllMediaLoading by remember { mutableStateOf(false) }
+    var activeDetailMedia by remember { mutableStateOf<MediaItem?>(null) }
+
+    // Shorts Tab state
+    var shortsList by remember { mutableStateOf<List<MediaItem>>(emptyList()) }
+    var isShortsLoading by remember { mutableStateOf(false) }
 
     // Global Predefined Tags state
     var predefinedTags by remember { mutableStateOf<List<TagItem>>(emptyList()) }
@@ -1370,14 +1539,18 @@ fun DashboardScreen(
     }
 
     // Navigation Backpress handling
-    BackHandler(enabled = isSelectionMode || pathStack.isNotEmpty() || activeViewerFile != null || activeViewerMedia != null) {
+    BackHandler(enabled = isSelectionMode || pathStack.isNotEmpty() || activeViewerFile != null || activeViewerMedia != null || activeDetailMedia != null || currentTab == DashboardTab.Shorts) {
         if (isSelectionMode) {
             selectedFiles.clear()
             isSelectionMode = false
+        } else if (activeDetailMedia != null) {
+            activeDetailMedia = null
         } else if (activeViewerFile != null) {
             activeViewerFile = null
         } else if (activeViewerMedia != null) {
             activeViewerMedia = null
+        } else if (currentTab == DashboardTab.Shorts) {
+            currentTab = DashboardTab.Files
         } else if (pathStack.isNotEmpty()) {
             pathStack.removeAt(pathStack.size - 1)
             currentPath = pathStack.joinToString("/")
@@ -1398,16 +1571,56 @@ fun DashboardScreen(
         }
     }
 
-    // Refresh Media List when entering Media tab
-    LaunchedEffect(currentTab) {
+    // Load paginated media and all media for recommendations
+    LaunchedEffect(currentTab, mediaPage, searchQuery) {
         if (currentTab == DashboardTab.Media) {
             isMediaLoading = true
             try {
-                mediaList = fetchMediaList(connection.serverUrl, connection.token)
+                val res = fetchMediaList(
+                    serverUrl = connection.serverUrl,
+                    token = connection.token,
+                    search = searchQuery.takeIf { it.isNotBlank() },
+                    page = mediaPage,
+                    limit = mediaPageSize
+                )
+                mediaList = res.items
+                mediaTotalCount = res.total
             } catch (e: Exception) {
                 Toast.makeText(context, "Error loading media: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
                 isMediaLoading = false
+            }
+        }
+    }
+
+    // Fetch all media once for details overlay recommended section
+    LaunchedEffect(currentTab) {
+        if (currentTab == DashboardTab.Media) {
+            isAllMediaLoading = true
+            try {
+                val res = fetchMediaList(
+                    serverUrl = connection.serverUrl,
+                    token = connection.token
+                )
+                allMediaList = res.items
+            } catch (e: Exception) {
+                Log.e("ClyoCloudAndroid", "Error prefetching all media", e)
+            } finally {
+                isAllMediaLoading = false
+            }
+        }
+    }
+
+    // Refresh Shorts Feed when entering Shorts tab
+    LaunchedEffect(currentTab) {
+        if (currentTab == DashboardTab.Shorts) {
+            isShortsLoading = true
+            try {
+                shortsList = fetchShortsFeed(connection.serverUrl, connection.token)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error loading Shorts: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isShortsLoading = false
             }
         }
     }
@@ -1425,7 +1638,19 @@ fun DashboardScreen(
     val triggerMediaRefresh = {
         scope.launch {
             try {
-                mediaList = fetchMediaList(connection.serverUrl, connection.token)
+                val res = fetchMediaList(
+                    serverUrl = connection.serverUrl,
+                    token = connection.token,
+                    search = searchQuery.takeIf { it.isNotBlank() },
+                    page = mediaPage,
+                    limit = mediaPageSize
+                )
+                mediaList = res.items
+                mediaTotalCount = res.total
+                
+                // Also refresh allMediaList in background
+                val allRes = fetchMediaList(connection.serverUrl, connection.token)
+                allMediaList = allRes.items
             } catch (e: Exception) {
                 Log.e("ClyoCloudAndroid", "Refresh error", e)
             }
@@ -1657,6 +1882,7 @@ fun DashboardScreen(
                         Text(
                             text = when (currentTab) {
                                 DashboardTab.Files -> "Cloud Storage"
+                                DashboardTab.Shorts -> "Shorts Feed"
                                 DashboardTab.Media -> "Media Library"
                                 DashboardTab.Settings -> "Connection"
                             },
@@ -1793,119 +2019,158 @@ fun DashboardScreen(
             ) {
                 when (currentTab) {
                     DashboardTab.Files -> {
-                        FilesTabContent(
-                            serverUrl = connection.serverUrl,
-                            token = connection.token,
-                            currentPath = currentPath,
-                            pathStack = pathStack,
-                            files = filesList,
-                            isLoading = isFilesLoading,
-                            searchQuery = searchQuery,
-                            showFavoritesOnly = showFavoritesOnly,
-                            isGridView = isGridView,
-                            autoplayPreviews = autoplayPreviews,
-                            sortOption = sortOption,
-                            isSelectionMode = isSelectionMode,
-                            selectedFiles = selectedFiles.toSet(),
-                            onPathChanged = { newPath ->
-                                currentPath = newPath
-                                pathStack.clear()
-                                if (newPath.isNotEmpty()) {
-                                    pathStack.addAll(newPath.split("/"))
-                                }
-                            },
-                            onFileClick = { file -> activeViewerFile = file },
-                            onToggleFavorite = { file, isFav ->
+                        PullToRefreshBox(
+                            isRefreshing = isFilesLoading,
+                            onRefresh = {
+                                isFilesLoading = true
                                 scope.launch {
-                                    val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                    if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = isFav)) {
-                                        triggerFileRefresh()
+                                    try {
+                                        filesList = fetchFilesList(connection.serverUrl, connection.token, currentPath)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    } finally {
+                                        isFilesLoading = false
                                     }
                                 }
                             },
-                            onTogglePublic = { file, isPub ->
-                                scope.launch {
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            FilesTabContent(
+                                serverUrl = connection.serverUrl,
+                                token = connection.token,
+                                currentPath = currentPath,
+                                pathStack = pathStack,
+                                files = filesList,
+                                isLoading = isFilesLoading,
+                                searchQuery = searchQuery,
+                                showFavoritesOnly = showFavoritesOnly,
+                                isGridView = isGridView,
+                                autoplayPreviews = autoplayPreviews,
+                                sortOption = sortOption,
+                                isSelectionMode = isSelectionMode,
+                                selectedFiles = selectedFiles.toSet(),
+                                onPathChanged = { newPath ->
+                                    currentPath = newPath
+                                    pathStack.clear()
+                                    if (newPath.isNotEmpty()) {
+                                        pathStack.addAll(newPath.split("/"))
+                                    }
+                                },
+                                onFileClick = { file -> activeViewerFile = file },
+                                onToggleFavorite = { file, isFav ->
+                                    scope.launch {
+                                        val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                        if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = isFav)) {
+                                            triggerFileRefresh()
+                                        }
+                                    }
+                                },
+                                onTogglePublic = { file, isPub ->
+                                    scope.launch {
+                                        val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                        if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isPublic = isPub)) {
+                                            triggerFileRefresh()
+                                            if (isPub) {
+                                                val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
+                                                shareText(context, publicUrl, "Share public link")
+                                            }
+                                        }
+                                    }
+                                },
+                                onCopyLink = { file ->
                                     val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                    if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isPublic = isPub)) {
-                                        triggerFileRefresh()
-                                        if (isPub) {
-                                            val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
-                                            shareText(context, publicUrl, "Share public link")
+                                    val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("ClyoCloud Link", publicUrl)
+                                    clipboard.setPrimaryClip(clip)
+                                    Toast.makeText(context, "Link copied to clipboard", Toast.LENGTH_SHORT).show()
+                                },
+                                onDownload = { file ->
+                                    val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                    scope.launch {
+                                        Toast.makeText(context, "Downloading ${file.name}...", Toast.LENGTH_SHORT).show()
+                                        val success = downloadFileToDevice(context, connection.serverUrl, connection.token, fullFilePath, file.name)
+                                        if (success) {
+                                            Toast.makeText(context, "Download complete: ${file.name}", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                onDelete = { file ->
+                                    val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                    scope.launch {
+                                        if (deleteFileOrFolder(connection.serverUrl, connection.token, fullFilePath)) {
+                                            Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
+                                            triggerFileRefresh()
+                                        } else {
+                                            Toast.makeText(context, "Delete failed", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                onEditTags = { file ->
+                                    fileForTagEdit = file
+                                    showTagEditDialog = true
+                                },
+                                onToggleSelection = { file ->
+                                    if (selectedFiles.contains(file.name)) {
+                                        selectedFiles.remove(file.name)
+                                        if (selectedFiles.isEmpty()) {
+                                            isSelectionMode = false
+                                        }
+                                    } else {
+                                        selectedFiles.add(file.name)
+                                    }
+                                },
+                                onLongClick = { file ->
+                                    isSelectionMode = true
+                                    selectedFiles.clear()
+                                    selectedFiles.add(file.name)
+                                },
+                                onRename = { file ->
+                                    renameTargetFile = file
+                                    renameNewName = file.name
+                                    showRenameDialog = true
+                                },
+                                onMove = { file ->
+                                    moveTargetFiles = listOf(file)
+                                    pickerCurrentPath = ""
+                                    showMoveDialog = true
+                                },
+                                onDownloadZip = { file ->
+                                    val fileRelativePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                    val zipUrl = "${connection.serverUrl}/api/zip?path=${Uri.encode(fileRelativePath)}"
+                                    val zipName = "${file.name}.zip"
+                                    scope.launch {
+                                        Toast.makeText(context, "Downloading zip archive...", Toast.LENGTH_SHORT).show()
+                                        val success = downloadUrlToDevice(context, connection.token, zipUrl, zipName)
+                                        if (success) {
+                                            Toast.makeText(context, "Download complete: $zipName", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 }
-                            },
-                            onCopyLink = { file ->
-                                val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                val clip = android.content.ClipData.newPlainText("ClyoCloud Link", publicUrl)
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "Link copied to clipboard", Toast.LENGTH_SHORT).show()
-                            },
-                            onDownload = { file ->
-                                val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                            )
+                        }
+                    }
+                    DashboardTab.Shorts -> {
+                        ShortsTabContent(
+                            serverUrl = connection.serverUrl,
+                            token = connection.token,
+                            shortsList = shortsList,
+                            isLoading = isShortsLoading,
+                            predefinedTags = predefinedTags,
+                            onPredefinedTagsChanged = { predefinedTags = it },
+                            onRefreshFeed = {
+                                isShortsLoading = true
                                 scope.launch {
-                                    Toast.makeText(context, "Downloading ${file.name}...", Toast.LENGTH_SHORT).show()
-                                    val success = downloadFileToDevice(context, connection.serverUrl, connection.token, fullFilePath, file.name)
-                                    if (success) {
-                                        Toast.makeText(context, "Download complete: ${file.name}", Toast.LENGTH_LONG).show()
-                                    } else {
-                                        Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            onDelete = { file ->
-                                val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                scope.launch {
-                                    if (deleteFileOrFolder(connection.serverUrl, connection.token, fullFilePath)) {
-                                        Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
-                                        triggerFileRefresh()
-                                    } else {
-                                        Toast.makeText(context, "Delete failed", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                            },
-                            onEditTags = { file ->
-                                fileForTagEdit = file
-                                showTagEditDialog = true
-                            },
-                            onToggleSelection = { file ->
-                                if (selectedFiles.contains(file.name)) {
-                                    selectedFiles.remove(file.name)
-                                    if (selectedFiles.isEmpty()) {
-                                        isSelectionMode = false
-                                    }
-                                } else {
-                                    selectedFiles.add(file.name)
-                                }
-                            },
-                            onLongClick = { file ->
-                                isSelectionMode = true
-                                selectedFiles.clear()
-                                selectedFiles.add(file.name)
-                            },
-                            onRename = { file ->
-                                renameTargetFile = file
-                                renameNewName = file.name
-                                showRenameDialog = true
-                            },
-                            onMove = { file ->
-                                moveTargetFiles = listOf(file)
-                                pickerCurrentPath = ""
-                                showMoveDialog = true
-                            },
-                            onDownloadZip = { file ->
-                                val fileRelativePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                val zipUrl = "${connection.serverUrl}/api/zip?path=${Uri.encode(fileRelativePath)}"
-                                val zipName = "${file.name}.zip"
-                                scope.launch {
-                                    Toast.makeText(context, "Downloading zip archive...", Toast.LENGTH_SHORT).show()
-                                    val success = downloadUrlToDevice(context, connection.token, zipUrl, zipName)
-                                    if (success) {
-                                        Toast.makeText(context, "Download complete: $zipName", Toast.LENGTH_LONG).show()
-                                    } else {
-                                        Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                                    try {
+                                        shortsList = fetchShortsFeed(connection.serverUrl, connection.token)
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    } finally {
+                                        isShortsLoading = false
                                     }
                                 }
                             }
@@ -1919,7 +2184,11 @@ fun DashboardScreen(
                             isLoading = isMediaLoading,
                             searchQuery = searchQuery,
                             showFavoritesOnly = showFavoritesOnly,
-                            onMediaClick = { media -> activeViewerMedia = media },
+                            mediaPage = mediaPage,
+                            mediaPageSize = mediaPageSize,
+                            mediaTotalCount = mediaTotalCount,
+                            onPageChanged = { mediaPage = it },
+                            onMediaClick = { media -> activeDetailMedia = media },
                             onMediaLongClick = { media ->
                                 val mappedFile = CloudFile(
                                     name = media.name,
@@ -1990,6 +2259,19 @@ fun DashboardScreen(
                         onClick = { currentTab = DashboardTab.Files },
                         icon = { Icon(FolderIcon, contentDescription = "Files", modifier = Modifier.size(22.dp)) },
                         label = { Text("Files") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = theme.accent1,
+                            selectedTextColor = theme.accent1,
+                            unselectedIconColor = Color(0xFFA0A0C0),
+                            unselectedTextColor = Color(0xFFA0A0C0),
+                            indicatorColor = theme.accent1.copy(alpha = 0.12f)
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == DashboardTab.Shorts,
+                        onClick = { currentTab = DashboardTab.Shorts },
+                        icon = { Icon(AutoplayIcon, contentDescription = "Shorts", modifier = Modifier.size(22.dp)) },
+                        label = { Text("Shorts") },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = theme.accent1,
                             selectedTextColor = theme.accent1,
@@ -2981,6 +3263,111 @@ fun DashboardScreen(
                 }
             )
         }
+
+        // Detailed Player overlay for Media Tab
+        if (activeDetailMedia != null) {
+            val media = activeDetailMedia!!
+            MediaDetailsView(
+                serverUrl = connection.serverUrl,
+                token = connection.token,
+                username = connection.username,
+                media = media,
+                allVideos = allMediaList,
+                predefinedTags = predefinedTags,
+                onPredefinedTagsChanged = { predefinedTags = it },
+                onClose = { activeDetailMedia = null },
+                onToggleFavorite = { item, isFav ->
+                    scope.launch {
+                        if (updateFileMeta(connection.serverUrl, connection.token, item.fullPath, isFavourite = isFav)) {
+                            activeDetailMedia = item.copy(isFavourite = isFav)
+                            triggerMediaRefresh()
+                        }
+                    }
+                },
+                onTogglePublic = { item, isPub ->
+                    scope.launch {
+                        if (updateFileMeta(connection.serverUrl, connection.token, item.fullPath, isPublic = isPub)) {
+                            activeDetailMedia = item.copy(isPublic = isPub)
+                            triggerMediaRefresh()
+                        }
+                    }
+                },
+                onDownload = { item ->
+                    scope.launch {
+                        Toast.makeText(context, "Downloading ${item.name}...", Toast.LENGTH_SHORT).show()
+                        val success = downloadFileToDevice(context, connection.serverUrl, connection.token, item.fullPath, item.name)
+                        if (success) {
+                            Toast.makeText(context, "Download complete: ${item.name}", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onShare = { item ->
+                    val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(item.fullPath)}"
+                    shareText(context, publicUrl, "Share public link")
+                },
+                onExcludeParentFolder = { item ->
+                    scope.launch {
+                        val pathParts = item.fullPath.split('/')
+                        if (pathParts.size > 1) {
+                            val parentFolder = pathParts.dropLast(1).joinToString("/")
+                            val settings = fetchUserSettings(connection.serverUrl, connection.token)
+                            if (settings != null) {
+                                val excluded = mutableListOf<String>()
+                                val arr = settings.optJSONArray("excludedMediaPaths")
+                                if (arr != null) {
+                                    for (j in 0 until arr.length()) {
+                                        excluded.add(arr.getString(j))
+                                    }
+                                }
+                                if (!excluded.contains(parentFolder)) {
+                                    excluded.add(parentFolder)
+                                    val updatedArr = JSONArray()
+                                    excluded.forEach { updatedArr.put(it) }
+                                    settings.put("excludedMediaPaths", updatedArr)
+                                    if (saveUserSettings(connection.serverUrl, connection.token, settings)) {
+                                        Toast.makeText(context, "Folder excluded successfully", Toast.LENGTH_SHORT).show()
+                                        activeDetailMedia = null
+                                        triggerMediaRefresh()
+                                    } else {
+                                        Toast.makeText(context, "Failed to update settings", Toast.LENGTH_SHORT).show()
+                                    }
+                                } else {
+                                    Toast.makeText(context, "Folder already excluded", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                Toast.makeText(context, "Failed to fetch settings", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            Toast.makeText(context, "Cannot exclude root folder", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onVideoSelected = { video ->
+                    activeDetailMedia = video
+                },
+                onSaveDescription = { item, newDesc ->
+                    scope.launch {
+                        if (updateFileMeta(connection.serverUrl, connection.token, item.fullPath, description = newDesc)) {
+                            activeDetailMedia = item.copy(description = newDesc)
+                            triggerMediaRefresh()
+                            Toast.makeText(context, "Description saved", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Failed to save description", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                onUpdateTags = { item, updatedTags ->
+                    scope.launch {
+                        if (updateFileMeta(connection.serverUrl, connection.token, item.fullPath, tags = updatedTags)) {
+                            activeDetailMedia = item.copy(tags = updatedTags)
+                            triggerMediaRefresh()
+                        }
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -3527,125 +3914,178 @@ fun MediaTabContent(
     isLoading: Boolean,
     searchQuery: String,
     showFavoritesOnly: Boolean,
+    mediaPage: Int,
+    mediaPageSize: Int,
+    mediaTotalCount: Int,
+    onPageChanged: (Int) -> Unit,
     onMediaClick: (MediaItem) -> Unit,
     onMediaLongClick: (MediaItem) -> Unit
 ) {
     val filteredMedia = mediaList.filter { media ->
-        val matchesSearch = media.name.contains(searchQuery, ignoreCase = true)
         val matchesFav = !showFavoritesOnly || media.isFavourite
-        matchesSearch && matchesFav
+        matchesFav
     }
 
-    if (isLoading) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
-        }
-    } else if (filteredMedia.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("No media found", color = Color(0xFFA0A0C0))
-        }
-    } else {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(items = filteredMedia, key = { it.fullPath }) { media ->
-                // Thumbnail loading path:
-                // For video: use fullPath
-                // For slideshow: use the first image in list if available
-                val thumbnailPath = if (media.type == "slideshow" && media.images.isNotEmpty()) {
-                    media.images[0]
-                } else {
-                    media.fullPath
-                }
+    Column(modifier = Modifier.fillMaxSize()) {
+        if (isLoading) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
+            }
+        } else if (filteredMedia.isEmpty()) {
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("No media found", color = Color(0xFFA0A0C0))
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(items = filteredMedia, key = { it.fullPath }) { media ->
+                    // Thumbnail loading path:
+                    // For video: use fullPath
+                    // For slideshow: use the first image in list if available
+                    val thumbnailPath = if (media.type == "slideshow" && media.images.isNotEmpty()) {
+                        media.images[0]
+                    } else {
+                        media.fullPath
+                    }
 
-                GlassCard(
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .combinedClickable(
-                            onClick = { onMediaClick(media) },
-                            onLongClick = { onMediaLongClick(media) }
-                        )
-                ) {
-                    Column {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(16f / 10f)
-                                .background(Color.Black)
-                        ) {
-                            AsyncServerImage(
-                                serverUrl = serverUrl,
-                                token = token,
-                                relativePath = thumbnailPath,
-                                isThumbnail = true,
-                                contentDescription = media.name,
-                                modifier = Modifier.fillMaxSize()
+                    GlassCard(
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = { onMediaClick(media) },
+                                onLongClick = { onMediaLongClick(media) }
                             )
-
-                            // Play overlay badge for video
-                            if (media.type == "video") {
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .align(Alignment.Center)
-                                        .background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                                ) {
-                                    Icon(
-                                        imageVector = PlayIcon,
-                                        contentDescription = "Play",
-                                        tint = Color.White,
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .align(Alignment.Center)
-                                    )
-                                }
-                            }
-
-                            // Slideshow indicator badge
-                            if (media.type == "slideshow") {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(8.dp)
-                                        .background(LocalClyoTheme.current.accent1, RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text("SLIDESHOW", color = Color(0xFF0F0C1B), fontSize = 8.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Text(
-                                text = media.name,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .aspectRatio(16f / 10f)
+                                    .background(Color.Black)
                             ) {
-                                Text(
-                                    text = if (media.type == "slideshow") "Slideshow" else formatFileSize(media.size),
-                                    color = Color(0xFFA0A0C0),
-                                    fontSize = 10.sp
+                                AsyncServerImage(
+                                    serverUrl = serverUrl,
+                                    token = token,
+                                    relativePath = thumbnailPath,
+                                    isThumbnail = true,
+                                    contentDescription = media.name,
+                                    modifier = Modifier.fillMaxSize()
                                 )
-                                if (media.isFavourite) {
-                                    Icon(StarIcon, contentDescription = "Favorite", tint = Color(0xFFFFD700), modifier = Modifier.size(12.dp))
+
+                                // Play overlay badge for video
+                                if (media.type == "video") {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .align(Alignment.Center)
+                                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                    ) {
+                                        Icon(
+                                            imageVector = PlayIcon,
+                                            contentDescription = "Play",
+                                            tint = Color.White,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .align(Alignment.Center)
+                                        )
+                                    }
+                                }
+
+                                // Slideshow indicator badge
+                                if (media.type == "slideshow") {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(8.dp)
+                                            .background(LocalClyoTheme.current.accent1, RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    ) {
+                                        Text("SLIDESHOW", color = Color(0xFF0F0C1B), fontSize = 8.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text(
+                                    text = media.name,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (media.type == "slideshow") "Slideshow" else formatFileSize(media.size),
+                                        color = Color(0xFFA0A0C0),
+                                        fontSize = 10.sp
+                                    )
+                                    if (media.isFavourite) {
+                                        Icon(StarIcon, contentDescription = "Favorite", tint = Color(0xFFFFD700), modifier = Modifier.size(12.dp))
+                                    }
                                 }
                             }
                         }
                     }
+                }
+            }
+        }
+
+        // Pagination controls footer
+        if (mediaTotalCount > mediaPageSize) {
+            val totalPages = (mediaTotalCount + mediaPageSize - 1) / mediaPageSize
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp, horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = { onPageChanged((mediaPage - 1).coerceAtLeast(1)) },
+                    enabled = mediaPage > 1,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(alpha = 0.1f),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color.White.copy(alpha = 0.03f),
+                        disabledContentColor = Color.White.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Prev", fontSize = 12.sp)
+                }
+
+                Text(
+                    text = "Page $mediaPage of $totalPages",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium
+                )
+
+                Button(
+                    onClick = { onPageChanged((mediaPage + 1).coerceAtLeast(totalPages)) },
+                    enabled = mediaPage < totalPages,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(alpha = 0.1f),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color.White.copy(alpha = 0.03f),
+                        disabledContentColor = Color.White.copy(alpha = 0.3f)
+                    ),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Next", fontSize = 12.sp)
                 }
             }
         }
@@ -4327,8 +4767,69 @@ suspend fun fetchFilesList(serverUrl: String, token: String, path: String): List
 }
 
 // Fetch Media list for media tab
-suspend fun fetchMediaList(serverUrl: String, token: String): List<MediaItem> = withContext(Dispatchers.IO) {
-    val url = URL("$serverUrl/api/videos")
+suspend fun fetchMediaList(
+    serverUrl: String,
+    token: String,
+    search: String? = null,
+    page: Int = 0,
+    limit: Int = 0
+): MediaListResult = withContext(Dispatchers.IO) {
+    val queryParams = mutableListOf<String>()
+    if (page > 0) queryParams.add("page=$page")
+    if (limit > 0) queryParams.add("limit=$limit")
+    if (!search.isNullOrBlank()) queryParams.add("search=${Uri.encode(search)}")
+    
+    val queryString = if (queryParams.isNotEmpty()) "?" + queryParams.joinToString("&") else ""
+    val url = URL("$serverUrl/api/videos$queryString")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "GET"
+    conn.connectTimeout = 10000
+    conn.readTimeout = 10000
+    conn.setRequestProperty("Authorization", "Bearer $token")
+
+    try {
+        if (conn.responseCode != 200) {
+            return@withContext MediaListResult(emptyList(), 0)
+        }
+        val reader = BufferedReader(InputStreamReader(conn.inputStream))
+        val response = StringBuilder()
+        var line: String?
+        while (reader.readLine().also { line = it } != null) {
+            response.append(line)
+        }
+        reader.close()
+
+        val list = mutableListOf<MediaItem>()
+        var total = 0
+        val jsonStr = response.toString().trim()
+        if (jsonStr.startsWith("{")) {
+            val root = JSONObject(jsonStr)
+            total = root.optInt("total", 0)
+            val itemsArr = root.optJSONArray("items")
+            if (itemsArr != null) {
+                for (i in 0 until itemsArr.length()) {
+                    list.add(parseMediaItem(itemsArr.getJSONObject(i)))
+                }
+            }
+        } else if (jsonStr.startsWith("[")) {
+            val arr = JSONArray(jsonStr)
+            for (i in 0 until arr.length()) {
+                list.add(parseMediaItem(arr.getJSONObject(i)))
+            }
+            total = list.size
+        }
+        MediaListResult(list, total)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        MediaListResult(emptyList(), 0)
+    } finally {
+        conn.disconnect()
+    }
+}
+
+// Fetch Shorts feed (shuffled random video/slideshow media items)
+suspend fun fetchShortsFeed(serverUrl: String, token: String): List<MediaItem> = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/videos?shuffle=true&limit=200&page=1")
     val conn = url.openConnection() as HttpURLConnection
     conn.requestMethod = "GET"
     conn.connectTimeout = 10000
@@ -4983,5 +5484,1002 @@ suspend fun downloadUrlToDevice(
     } finally {
         inputStream?.close()
         conn?.disconnect()
+    }
+}
+
+// Date formatter helper
+fun formatDate(timestamp: Long): String {
+    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+    return sdf.format(java.util.Date(timestamp))
+}
+
+// --- Shorts Video Player Component ---
+@Composable
+fun ShortsVideoPlayer(
+    videoUrl: String,
+    token: String,
+    isMuted: Boolean,
+    loop: Boolean,
+    isActive: Boolean,
+    onEnded: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val exoPlayer = remember {
+        androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+            playWhenReady = true
+        }
+    }
+
+    LaunchedEffect(isMuted) {
+        exoPlayer.volume = if (isMuted) 0f else 1f
+    }
+
+    LaunchedEffect(loop) {
+        exoPlayer.repeatMode = if (loop) {
+            androidx.media3.common.Player.REPEAT_MODE_ALL
+        } else {
+            androidx.media3.common.Player.REPEAT_MODE_OFF
+        }
+    }
+
+    LaunchedEffect(isActive) {
+        exoPlayer.playWhenReady = isActive
+    }
+
+    LaunchedEffect(videoUrl, token) {
+        val dataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+            .setDefaultRequestProperties(mapOf("Authorization" to "Bearer $token"))
+        val mediaSource = androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
+            .createMediaSource(androidx.media3.common.MediaItem.fromUri(videoUrl))
+        
+        exoPlayer.setMediaSource(mediaSource)
+        exoPlayer.prepare()
+    }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : androidx.media3.common.Player.Listener {
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == androidx.media3.common.Player.STATE_ENDED) {
+                    onEnded()
+                }
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
+        }
+    }
+
+    AndroidView(
+        factory = { ctx ->
+            androidx.media3.ui.PlayerView(ctx).apply {
+                player = exoPlayer
+                useController = false
+                resizeMode = androidx.media3.ui.AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                setBackgroundColor(android.graphics.Color.BLACK)
+            }
+        },
+        modifier = modifier
+    )
+}
+
+// --- Shorts Slideshow Player Component ---
+@Composable
+fun ShortsSlideshowPlayer(
+    serverUrl: String,
+    token: String,
+    images: List<String>,
+    isActive: Boolean,
+    autoscroll: Boolean,
+    onEnded: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (images.isEmpty()) return
+    val context = LocalContext.current
+    var currentIndex by remember(images) { mutableStateOf(0) }
+    
+    LaunchedEffect(isActive, autoscroll, currentIndex) {
+        if (isActive) {
+            kotlinx.coroutines.delay(5000)
+            if (currentIndex < images.size - 1) {
+                currentIndex++
+            } else {
+                if (autoscroll) {
+                    onEnded()
+                } else {
+                    currentIndex = 0
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .background(Color.Black)
+            .pointerInput(images) {
+                detectTapGestures(
+                    onTap = { offset ->
+                        val width = size.width
+                        if (offset.x < width / 3f) {
+                            if (currentIndex > 0) currentIndex-- else currentIndex = images.size - 1
+                        } else {
+                            if (currentIndex < images.size - 1) currentIndex++ else currentIndex = 0
+                        }
+                    }
+                )
+            }
+    ) {
+        AsyncServerImage(
+            serverUrl = serverUrl,
+            token = token,
+            relativePath = images[currentIndex],
+            isThumbnail = false,
+            contentDescription = "Slideshow image",
+            modifier = Modifier.fillMaxSize()
+        )
+
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 180.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            images.forEachIndexed { index, _ ->
+                val selected = index == currentIndex
+                Box(
+                    modifier = Modifier
+                        .size(if (selected) 8.dp else 6.dp)
+                        .clip(CircleShape)
+                        .background(if (selected) Color.White else Color.White.copy(alpha = 0.4f))
+                )
+            }
+        }
+    }
+}
+
+// --- Shorts Tab Content Composable ---
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ShortsTabContent(
+    serverUrl: String,
+    token: String,
+    shortsList: List<MediaItem>,
+    isLoading: Boolean,
+    predefinedTags: List<TagItem>,
+    onPredefinedTagsChanged: (List<TagItem>) -> Unit,
+    onRefreshFeed: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isMuted by remember { mutableStateOf(true) }
+    var autoscroll by remember { mutableStateOf(true) }
+    var showTagsDialogForMedia by remember { mutableStateOf<MediaItem?>(null) }
+
+    if (isLoading) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
+        }
+        return
+    }
+
+    if (shortsList.isEmpty()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("No items found in your Shorts feed.", color = Color(0xFFA0A0C0))
+                Button(
+                    onClick = onRefreshFeed,
+                    colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                ) {
+                    Text("Refresh", color = Color(0xFF0F0C1B))
+                }
+            }
+        }
+        return
+    }
+
+    val pagerState = rememberPagerState(pageCount = { shortsList.size })
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        VerticalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { pageIndex ->
+            val media = shortsList[pageIndex]
+            val isActive = pagerState.currentPage == pageIndex
+
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (media.type == "video") {
+                    val streamUrl = "$serverUrl/stream/${Uri.encode(media.fullPath)}"
+                    ShortsVideoPlayer(
+                        videoUrl = streamUrl,
+                        token = token,
+                        isMuted = isMuted,
+                        loop = !autoscroll,
+                        isActive = isActive,
+                        onEnded = {
+                            if (autoscroll && pageIndex < shortsList.size - 1) {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(pageIndex + 1)
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else if (media.type == "slideshow") {
+                    ShortsSlideshowPlayer(
+                        serverUrl = serverUrl,
+                        token = token,
+                        images = media.images,
+                        isActive = isActive,
+                        autoscroll = autoscroll,
+                        onEnded = {
+                            if (autoscroll && pageIndex < shortsList.size - 1) {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(pageIndex + 1)
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .padding(end = 16.dp, bottom = 120.dp)
+                        .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
+                        .padding(vertical = 20.dp, horizontal = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    var localFav by remember(media.fullPath) { mutableStateOf(media.isFavourite) }
+                    IconButton(
+                        onClick = {
+                            localFav = !localFav
+                            scope.launch {
+                                updateFileMeta(serverUrl, token, media.fullPath, isFavourite = localFav)
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = StarIcon,
+                            contentDescription = "Favorite",
+                            tint = if (localFav) Color(0xFFFFD700) else Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = {
+                            val folderPath = if (media.type == "slideshow") {
+                                media.fullPath
+                            } else {
+                                val parts = media.fullPath.split('/')
+                                if (parts.size > 1) parts.dropLast(1).joinToString("/") else ""
+                            }
+                            if (folderPath.isNotEmpty()) {
+                                scope.launch {
+                                    val settings = fetchUserSettings(serverUrl, token)
+                                    if (settings != null) {
+                                        val selectedPaths = mutableListOf<String>()
+                                        val arr = settings.optJSONArray("selectedShortsPaths")
+                                        if (arr != null) {
+                                            for (k in 0 until arr.length()) {
+                                                selectedPaths.add(arr.getString(k))
+                                            }
+                                        }
+                                        if (selectedPaths.contains(folderPath)) {
+                                            selectedPaths.remove(folderPath)
+                                            val updatedArr = JSONArray()
+                                            selectedPaths.forEach { updatedArr.put(it) }
+                                            settings.put("selectedShortsPaths", updatedArr)
+                                            if (saveUserSettings(serverUrl, token, settings)) {
+                                                Toast.makeText(context, "Folder removed from Shorts feed", Toast.LENGTH_SHORT).show()
+                                                onRefreshFeed()
+                                            } else {
+                                                Toast.makeText(context, "Failed to update settings", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "Folder not in Shorts paths", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        Toast.makeText(context, "Failed to fetch settings", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            } else {
+                                Toast.makeText(context, "Cannot remove root folder", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = DeleteIcon,
+                            contentDescription = "Remove Folder",
+                            tint = Color(0xFFEF5350),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { isMuted = !isMuted }
+                    ) {
+                        Icon(
+                            imageVector = if (isMuted) VolumeOffIcon else VolumeUpIcon,
+                            contentDescription = "Mute Toggle",
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { autoscroll = !autoscroll }
+                    ) {
+                        Icon(
+                            imageVector = if (autoscroll) AutoplayIcon else PlayIcon,
+                            contentDescription = "Autoscroll Toggle",
+                            tint = if (autoscroll) LocalClyoTheme.current.accent1 else Color.White,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onRefreshFeed
+                    ) {
+                        Icon(
+                            imageVector = RefreshIcon,
+                            contentDescription = "Refresh Feed",
+                            tint = Color.White,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth(0.75f)
+                        .padding(start = 16.dp, bottom = 120.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = media.name,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    val currentMediaTags = media.tags
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        currentMediaTags.forEach { tag ->
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(tag.name, color = Color(android.graphics.Color.parseColor(tag.color)), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    Button(
+                        onClick = { showTagsDialogForMedia = media },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f)),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Icon(FileIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Manage Tags", color = Color.White, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+    }
+
+    if (showTagsDialogForMedia != null) {
+        val mediaItem = showTagsDialogForMedia!!
+        val currentTagsList = remember { mutableStateListOf<TagItem>().apply { addAll(mediaItem.tags) } }
+        var newTagName by remember { mutableStateOf("") }
+        val tagColors = listOf("#4B5EAA", "#BB86FC", "#03DAC6", "#FFB347", "#FF6B6B", "#6BCB77", "#FFD93D")
+        var selectedTagColor by remember { mutableStateOf(tagColors.first()) }
+
+        Dialog(onDismissRequest = { showTagsDialogForMedia = null }) {
+            GlassCard(modifier = Modifier.padding(16.dp)) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Manage Tags", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    
+                    Text("Selected Tags", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        currentTagsList.forEach { tag ->
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .combinedClickable(onClick = { currentTagsList.remove(tag) })
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(tag.name, color = Color(android.graphics.Color.parseColor(tag.color)), fontSize = 11.sp)
+                                    Icon(CloseIcon, contentDescription = "Remove", tint = Color(android.graphics.Color.parseColor(tag.color)), modifier = Modifier.size(10.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+                    Text("Add Existing Tags", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        predefinedTags.filter { pt -> !currentTagsList.any { it.name == pt.name } }.forEach { tag ->
+                            Box(
+                                modifier = Modifier
+                                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .combinedClickable(onClick = { currentTagsList.add(tag) })
+                            ) {
+                                Text(tag.name, color = Color(android.graphics.Color.parseColor(tag.color)), fontSize = 11.sp)
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+                    Text("Create New Tag", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                    GlassTextField(
+                        value = newTagName,
+                        onValueChange = { newTagName = it },
+                        label = "Tag name",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        tagColors.forEach { colorStr ->
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(android.graphics.Color.parseColor(colorStr)))
+                                    .border(
+                                        width = if (selectedTagColor == colorStr) 2.dp else 0.dp,
+                                        color = Color.White,
+                                        shape = CircleShape
+                                    )
+                                    .combinedClickable(onClick = { selectedTagColor = colorStr })
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (newTagName.isNotBlank()) {
+                                val cleanTag = TagItem(newTagName.trim(), selectedTagColor)
+                                if (!predefinedTags.any { it.name == cleanTag.name }) {
+                                    val updatedPredefined = predefinedTags.toMutableList().apply { add(cleanTag) }
+                                    onPredefinedTagsChanged(updatedPredefined)
+                                    scope.launch {
+                                        savePredefinedTags(serverUrl, token, updatedPredefined)
+                                    }
+                                }
+                                if (!currentTagsList.any { it.name == cleanTag.name }) {
+                                    currentTagsList.add(cleanTag)
+                                }
+                                newTagName = ""
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.15f))
+                    ) {
+                        Text("Create & Add Tag", color = Color.White)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Button(
+                            onClick = { showTagsDialogForMedia = null },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.White)
+                        ) {
+                            Text("Cancel")
+                        }
+                        Button(
+                            onClick = {
+                                val savedList = currentTagsList.toList()
+                                scope.launch {
+                                    if (updateFileMeta(serverUrl, token, mediaItem.fullPath, tags = savedList)) {
+                                        showTagsDialogForMedia = null
+                                        onRefreshFeed()
+                                    } else {
+                                        Toast.makeText(context, "Failed to save tags", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                        ) {
+                            Text("Apply", color = Color(0xFF0F0C1B))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- Media Details View Overlay Component ---
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun MediaDetailsView(
+    serverUrl: String,
+    token: String,
+    username: String,
+    media: MediaItem,
+    allVideos: List<MediaItem>,
+    predefinedTags: List<TagItem>,
+    onPredefinedTagsChanged: (List<TagItem>) -> Unit,
+    onClose: () -> Unit,
+    onToggleFavorite: (MediaItem, Boolean) -> Unit,
+    onTogglePublic: (MediaItem, Boolean) -> Unit,
+    onDownload: (MediaItem) -> Unit,
+    onShare: (MediaItem) -> Unit,
+    onExcludeParentFolder: (MediaItem) -> Unit,
+    onVideoSelected: (MediaItem) -> Unit,
+    onSaveDescription: (MediaItem, String) -> Unit,
+    onUpdateTags: (MediaItem, List<TagItem>) -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var isEditingDescription by remember(media.fullPath) { mutableStateOf(false) }
+    var descriptionText by remember(media.fullPath) { mutableStateOf(media.description ?: "") }
+    var showAddTagDialog by remember { mutableStateOf(false) }
+
+    val relatedVideos = remember(media, allVideos) {
+        val currentTags = media.tags.map { it.name.lowercase() }.toSet()
+        allVideos
+            .filter { it.fullPath != media.fullPath && it.type == "video" }
+            .map { video ->
+                val matchCount = video.tags.count { currentTags.contains(it.name.lowercase()) }
+                Pair(video, matchCount)
+            }
+            .filter { it.second > 0 }
+            .sortedByDescending { it.second }
+            .map { it.first }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F0C1B))
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onClose) {
+                    Icon(CloseIcon, contentDescription = "Close", tint = Color.White)
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = media.name,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(16f / 9f)
+                        .background(Color.Black)
+                ) {
+                    val streamUrl = "$serverUrl/stream/${Uri.encode(media.fullPath)}"
+                    VideoPlayer(
+                        videoUrl = streamUrl,
+                        token = token,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+
+                Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("File details", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Size:", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                        Text(formatFileSize(media.size), color = Color.White, fontSize = 12.sp)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Date Added:", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                        Text(formatDate(media.lastModified), color = Color.White, fontSize = 12.sp)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Type:", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                        Text(media.type.replaceFirstChar { it.uppercase() }, color = Color.White, fontSize = 12.sp)
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.combinedClickable(onClick = { onToggleFavorite(media, !media.isFavourite) })
+                    ) {
+                        Icon(
+                            imageVector = StarIcon,
+                            contentDescription = "Favorite",
+                            tint = if (media.isFavourite) Color(0xFFFFD700) else Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Favorite", color = Color.White, fontSize = 11.sp)
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.combinedClickable(onClick = { onShare(media) })
+                    ) {
+                        Icon(ShareIcon, contentDescription = "Share", tint = Color.White, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Share Link", color = Color.White, fontSize = 11.sp)
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.combinedClickable(onClick = { onDownload(media) })
+                    ) {
+                        Icon(DownloadIcon, contentDescription = "Download", tint = Color.White, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Download", color = Color.White, fontSize = 11.sp)
+                    }
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.combinedClickable(onClick = { onExcludeParentFolder(media) })
+                    ) {
+                        Icon(
+                            imageVector = WarningIcon,
+                            contentDescription = "Exclude Folder",
+                            tint = Color(0xFFEF5350),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Exclude Folder", color = Color(0xFFEF5350), fontSize = 11.sp)
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Description", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        if (!isEditingDescription) {
+                            Text(
+                                text = "Edit",
+                                color = LocalClyoTheme.current.accent1,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.combinedClickable(onClick = { isEditingDescription = true })
+                            )
+                        }
+                    }
+
+                    if (isEditingDescription) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GlassTextField(
+                                value = descriptionText,
+                                onValueChange = { descriptionText = it },
+                                label = "Edit description...",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                TextButton(onClick = {
+                                    descriptionText = media.description ?: ""
+                                    isEditingDescription = false
+                                }) {
+                                    Text("Cancel", color = Color.White)
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(
+                                    onClick = {
+                                        onSaveDescription(media, descriptionText.trim())
+                                        isEditingDescription = false
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                                ) {
+                                    Text("Save", color = Color(0xFF0F0C1B))
+                                }
+                            }
+                        }
+                    } else {
+                        Text(
+                            text = media.description?.takeIf { it.isNotBlank() } ?: "No description added yet.",
+                            color = if (media.description.isNullOrBlank()) Color(0xFFA0A0C0) else Color.White,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Tags", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            text = "+ Add Tag",
+                            color = LocalClyoTheme.current.accent1,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.combinedClickable(onClick = { showAddTagDialog = true })
+                        )
+                    }
+
+                    if (media.tags.isEmpty()) {
+                        Text("No tags added.", color = Color(0xFFA0A0C0), fontSize = 13.sp)
+                    } else {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            media.tags.forEach { tag ->
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                        .border(1.dp, Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        .combinedClickable(onClick = {
+                                            val listWithoutTag = media.tags.filter { it.name != tag.name }
+                                            onUpdateTags(media, listWithoutTag)
+                                        })
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            text = tag.name,
+                                            color = Color(android.graphics.Color.parseColor(tag.color)),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Icon(
+                                            imageVector = CloseIcon,
+                                            contentDescription = "Remove",
+                                            tint = Color(android.graphics.Color.parseColor(tag.color)),
+                                            modifier = Modifier.size(10.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.1f), modifier = Modifier.padding(horizontal = 16.dp))
+
+                Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Related Media", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    if (relatedVideos.isEmpty()) {
+                        Text("No related media found based on tags.", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                    } else {
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(relatedVideos) { video ->
+                                GlassCard(
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier
+                                        .width(160.dp)
+                                        .combinedClickable(onClick = { onVideoSelected(video) })
+                                ) {
+                                    Column {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(90.dp)
+                                                .background(Color.Black)
+                                        ) {
+                                            AsyncServerImage(
+                                                serverUrl = serverUrl,
+                                                token = token,
+                                                relativePath = video.fullPath,
+                                                isThumbnail = true,
+                                                contentDescription = video.name,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                        Text(
+                                            text = video.name,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(8.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+
+    if (showAddTagDialog) {
+        var newTagName by remember { mutableStateOf("") }
+        val tagColors = listOf("#4B5EAA", "#BB86FC", "#03DAC6", "#FFB347", "#FF6B6B", "#6BCB77", "#FFD93D")
+        var selectedTagColor by remember { mutableStateOf(tagColors.first()) }
+
+        Dialog(onDismissRequest = { showAddTagDialog = false }) {
+            GlassCard(modifier = Modifier.padding(16.dp)) {
+                Column(
+                    modifier = Modifier
+                        .padding(16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Add Tags", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+
+                    Text("Select Existing Tag", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        predefinedTags.filter { pt -> !media.tags.any { it.name == pt.name } }.forEach { tag ->
+                            Box(
+                                modifier = Modifier
+                                    .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .combinedClickable(onClick = {
+                                        val listWithTag = media.tags.toMutableList().apply { add(tag) }
+                                        onUpdateTags(media, listWithTag)
+                                        showAddTagDialog = false
+                                    })
+                            ) {
+                                Text(tag.name, color = Color(android.graphics.Color.parseColor(tag.color)), fontSize = 11.sp)
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+                    Text("Create New Tag", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                    GlassTextField(
+                        value = newTagName,
+                        onValueChange = { newTagName = it },
+                        label = "Tag name",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        tagColors.forEach { colorStr ->
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(android.graphics.Color.parseColor(colorStr)))
+                                    .border(
+                                        width = if (selectedTagColor == colorStr) 2.dp else 0.dp,
+                                        color = Color.White,
+                                        shape = CircleShape
+                                    )
+                                    .combinedClickable(onClick = { selectedTagColor = colorStr })
+                            )
+                        }
+                    }
+
+                    Button(
+                        onClick = {
+                            if (newTagName.isNotBlank()) {
+                                val cleanTag = TagItem(newTagName.trim(), selectedTagColor)
+                                if (!predefinedTags.any { it.name == cleanTag.name }) {
+                                    val updatedPredefined = predefinedTags.toMutableList().apply { add(cleanTag) }
+                                    onPredefinedTagsChanged(updatedPredefined)
+                                    scope.launch {
+                                        savePredefinedTags(serverUrl, token, updatedPredefined)
+                                    }
+                                }
+                                if (!media.tags.any { it.name == cleanTag.name }) {
+                                    val listWithTag = media.tags.toMutableList().apply { add(cleanTag) }
+                                    onUpdateTags(media, listWithTag)
+                                }
+                                showAddTagDialog = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                    ) {
+                        Text("Create & Add Tag", color = Color(0xFF0F0C1B))
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Button(
+                        onClick = { showAddTagDialog = false },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = Color.White)
+                    ) {
+                        Text("Close")
+                    }
+                }
+            }
+        }
     }
 }
