@@ -82,6 +82,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -1235,26 +1236,20 @@ fun DashboardScreen(
 
     val triggerFileRefresh = {
         scope.launch {
-            isFilesLoading = true
             try {
                 filesList = fetchFilesList(connection.serverUrl, connection.token, currentPath)
             } catch (e: Exception) {
                 Log.e("ClyoCloudAndroid", "Refresh error", e)
-            } finally {
-                isFilesLoading = false
             }
         }
     }
 
     val triggerMediaRefresh = {
         scope.launch {
-            isMediaLoading = true
             try {
                 mediaList = fetchMediaList(connection.serverUrl, connection.token)
             } catch (e: Exception) {
                 Log.e("ClyoCloudAndroid", "Refresh error", e)
-            } finally {
-                isMediaLoading = false
             }
         }
     }
@@ -1925,7 +1920,7 @@ fun FilesTabContent(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(filteredFiles) { file ->
+                    items(items = filteredFiles, key = { it.name }) { file ->
                         var isMenuExpanded by remember { mutableStateOf(false) }
                         val fileRelativePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
 
@@ -2135,7 +2130,7 @@ fun FilesTabContent(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(filteredFiles) { file ->
+                    items(items = filteredFiles, key = { it.name }) { file ->
                         var isMenuExpanded by remember { mutableStateOf(false) }
                         
                         GlassCard(
@@ -2306,7 +2301,7 @@ fun MediaTabContent(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(filteredMedia) { media ->
+            items(items = filteredMedia, key = { it.fullPath }) { media ->
                 // Thumbnail loading path:
                 // For video: use fullPath
                 // For slideshow: use the first image in list if available
@@ -2619,7 +2614,7 @@ fun ImmersiveMediaViewer(
     }
 }
 
-// Custom Native VideoView wrapper with custom headers
+// Custom Media3 ExoPlayer wrapper with custom headers
 @Composable
 fun VideoPlayer(
     videoUrl: String,
@@ -2627,25 +2622,36 @@ fun VideoPlayer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val exoPlayer = remember {
+        androidx.media3.exoplayer.ExoPlayer.Builder(context).build().apply {
+            playWhenReady = true
+            repeatMode = androidx.media3.common.Player.REPEAT_MODE_ALL
+        }
+    }
+
+    LaunchedEffect(videoUrl, token) {
+        val dataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+            .setDefaultRequestProperties(mapOf("Authorization" to "Bearer $token"))
+        val mediaSource = androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
+            .createMediaSource(androidx.media3.common.MediaItem.fromUri(videoUrl))
+        
+        exoPlayer.setMediaSource(mediaSource)
+        exoPlayer.prepare()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            exoPlayer.release()
+        }
+    }
+
     AndroidView(
         factory = { ctx ->
-            VideoView(ctx).apply {
-                val mediaController = MediaController(ctx)
-                mediaController.setAnchorView(this)
-                setMediaController(mediaController)
-
-                val headers = mapOf("Authorization" to "Bearer $token")
-                setVideoURI(Uri.parse(videoUrl), headers)
-
-                setOnPreparedListener { mp ->
-                    mp.isLooping = true
-                    start()
-                }
+            androidx.media3.ui.PlayerView(ctx).apply {
+                player = exoPlayer
+                useController = true
+                setBackgroundColor(android.graphics.Color.BLACK)
             }
-        },
-        update = { videoView ->
-            val headers = mapOf("Authorization" to "Bearer $token")
-            videoView.setVideoURI(Uri.parse(videoUrl), headers)
         },
         modifier = modifier
     )
