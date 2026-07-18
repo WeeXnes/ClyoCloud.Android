@@ -52,6 +52,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -611,7 +613,8 @@ data class CloudFile(
     var isFavourite: Boolean,
     val description: String?,
     val tags: List<TagItem>,
-    val previewImage: String? = null
+    val previewImage: String? = null,
+    val fullPath: String? = null
 )
 
 data class MediaItem(
@@ -1094,8 +1097,17 @@ fun DashboardScreen(
     var currentTab by remember { mutableStateOf(DashboardTab.Files) }
     var searchQuery by remember { mutableStateOf("") }
     var showFavoritesOnly by remember { mutableStateOf(false) }
-    var isGridView by remember { mutableStateOf(false) }
-    var autoplayPreviews by remember { mutableStateOf(true) }
+    val sharedPref = remember { context.getSharedPreferences("ClyoCloudPrefs", Context.MODE_PRIVATE) }
+    var isGridView by remember { mutableStateOf(sharedPref.getBoolean("is_grid_view", false)) }
+    var autoplayPreviews by remember { mutableStateOf(sharedPref.getBoolean("autoplay_previews", true)) }
+
+    LaunchedEffect(isGridView) {
+        sharedPref.edit().putBoolean("is_grid_view", isGridView).apply()
+    }
+
+    LaunchedEffect(autoplayPreviews) {
+        sharedPref.edit().putBoolean("autoplay_previews", autoplayPreviews).apply()
+    }
 
     // Files Tab state
     var currentPath by remember { mutableStateOf("") }
@@ -1376,7 +1388,13 @@ fun DashboardScreen(
                             showFavoritesOnly = showFavoritesOnly,
                             isGridView = isGridView,
                             autoplayPreviews = autoplayPreviews,
-                            onPathChanged = { newPath -> currentPath = newPath },
+                            onPathChanged = { newPath ->
+                                currentPath = newPath
+                                pathStack.clear()
+                                if (newPath.isNotEmpty()) {
+                                    pathStack.addAll(newPath.split("/"))
+                                }
+                            },
                             onFileClick = { file -> activeViewerFile = file },
                             onToggleFavorite = { file, isFav ->
                                 scope.launch {
@@ -1649,27 +1667,27 @@ fun DashboardScreen(
 
         // Immersive viewer for files
         if (activeViewerFile != null) {
-            val file = activeViewerFile!!
-            val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+            val mediaFiles = filesList.filter { !it.isFolder && (isImageFile(it.name) || isVideoFile(it.name)) }
+            val initialIndex = mediaFiles.indexOfFirst { it.name == activeViewerFile?.name }.coerceAtLeast(0)
             ImmersiveMediaViewer(
                 serverUrl = connection.serverUrl,
                 token = connection.token,
-                filePath = fullFilePath,
-                fileName = file.name,
-                isPublic = file.isPublic,
-                isFavourite = file.isFavourite,
-                tags = file.tags,
+                mediaFiles = mediaFiles,
+                initialIndex = initialIndex,
+                currentPath = currentPath,
                 onClose = { activeViewerFile = null },
-                onToggleFavorite = { isFav ->
+                onToggleFavorite = { file, isFav ->
                     scope.launch {
+                        val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
                         if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = isFav)) {
                             file.isFavourite = isFav
                             triggerFileRefresh()
                         }
                     }
                 },
-                onTogglePublic = { isPub ->
+                onTogglePublic = { file, isPub ->
                     scope.launch {
+                        val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
                         if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isPublic = isPub)) {
                             file.isPublic = isPub
                             triggerFileRefresh()
@@ -1680,18 +1698,20 @@ fun DashboardScreen(
                         }
                     }
                 },
-                onDownload = {
+                onDownload = { file ->
+                    val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
                     scope.launch {
                         Toast.makeText(context, "Downloading ${file.name}...", Toast.LENGTH_SHORT).show()
                         val success = downloadFileToDevice(context, connection.serverUrl, connection.token, fullFilePath, file.name)
                         if (success) {
-                            Toast.makeText(context, "Download complete", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Download complete: ${file.name}", Toast.LENGTH_LONG).show()
                         } else {
                             Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
-                onShare = {
+                onShare = { file ->
+                    val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
                     val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
                     shareText(context, publicUrl, "Share link")
                 }
@@ -1700,49 +1720,67 @@ fun DashboardScreen(
 
         // Immersive viewer for Media Tab
         if (activeViewerMedia != null) {
-            val media = activeViewerMedia!!
-            val viewerPath = media.fullPath
-            val viewerName = media.name
+            val mappedCloudFiles = mediaList.map { media ->
+                CloudFile(
+                    name = media.name,
+                    size = media.size,
+                    type = if (media.type == "video") "video/mp4" else "image/jpeg",
+                    lastModified = media.lastModified,
+                    isFolder = false,
+                    isPublic = media.isPublic,
+                    isFavourite = media.isFavourite,
+                    description = media.description,
+                    tags = media.tags,
+                    previewImage = null,
+                    fullPath = media.fullPath
+                )
+            }
+            val initialIndex = mediaList.indexOfFirst { it.fullPath == activeViewerMedia?.fullPath }.coerceAtLeast(0)
+
             ImmersiveMediaViewer(
                 serverUrl = connection.serverUrl,
                 token = connection.token,
-                filePath = viewerPath,
-                fileName = viewerName,
-                isPublic = media.isPublic,
-                isFavourite = media.isFavourite,
-                tags = media.tags,
+                mediaFiles = mappedCloudFiles,
+                initialIndex = initialIndex,
+                currentPath = "",
                 onClose = { activeViewerMedia = null },
-                onToggleFavorite = { isFav ->
+                onToggleFavorite = { file, isFav ->
                     scope.launch {
-                        if (updateFileMeta(connection.serverUrl, connection.token, viewerPath, isFavourite = isFav)) {
+                        val fullPath = file.fullPath ?: file.name
+                        if (updateFileMeta(connection.serverUrl, connection.token, fullPath, isFavourite = isFav)) {
+                            file.isFavourite = isFav
                             triggerMediaRefresh()
                         }
                     }
                 },
-                onTogglePublic = { isPub ->
+                onTogglePublic = { file, isPub ->
                     scope.launch {
-                        if (updateFileMeta(connection.serverUrl, connection.token, viewerPath, isPublic = isPub)) {
+                        val fullPath = file.fullPath ?: file.name
+                        if (updateFileMeta(connection.serverUrl, connection.token, fullPath, isPublic = isPub)) {
+                            file.isPublic = isPub
                             triggerMediaRefresh()
                             if (isPub) {
-                                val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(viewerPath)}"
+                                val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullPath)}"
                                 shareText(context, publicUrl, "Share public link")
                             }
                         }
                     }
                 },
-                onDownload = {
+                onDownload = { file ->
+                    val fullPath = file.fullPath ?: file.name
                     scope.launch {
-                        Toast.makeText(context, "Downloading $viewerName...", Toast.LENGTH_SHORT).show()
-                        val success = downloadFileToDevice(context, connection.serverUrl, connection.token, viewerPath, viewerName)
+                        Toast.makeText(context, "Downloading ${file.name}...", Toast.LENGTH_SHORT).show()
+                        val success = downloadFileToDevice(context, connection.serverUrl, connection.token, fullPath, file.name)
                         if (success) {
-                            Toast.makeText(context, "Download complete", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "Download complete: ${file.name}", Toast.LENGTH_LONG).show()
                         } else {
                             Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
-                onShare = {
-                    val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(viewerPath)}"
+                onShare = { file ->
+                    val fullPath = file.fullPath ?: file.name
+                    val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullPath)}"
                     shareText(context, publicUrl, "Share link")
                 }
             )
@@ -1797,7 +1835,7 @@ fun FilesTabContent(
             )
 
             pathStack.forEachIndexed { index, segment ->
-                Text(" / ", color = Color(0xFFA0A0C0))
+                Text(" > ", color = Color(0xFFA0A0C0), modifier = Modifier.padding(horizontal = 4.dp))
                 Text(
                     text = segment,
                     color = if (index == pathStack.lastIndex) Color(0xFFBB86FC) else Color.White,
@@ -1907,13 +1945,14 @@ fun FilesTabContent(
                                     }
 
                                     // Star/Favorite top-right overlay
-                                    IconButton(
-                                        onClick = { onToggleFavorite(file, !file.isFavourite) },
+                                    Box(
                                         modifier = Modifier
                                             .align(Alignment.TopEnd)
-                                            .padding(4.dp)
+                                            .padding(6.dp)
                                             .size(24.dp)
                                             .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                                            .clickable { onToggleFavorite(file, !file.isFavourite) },
+                                        contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = if (file.isFavourite) StarIcon else StarBorderIcon,
@@ -1925,13 +1964,14 @@ fun FilesTabContent(
 
                                     // Quick Copy Link overlay if shared
                                     if (file.isPublic) {
-                                        IconButton(
-                                            onClick = { onCopyLink(file) },
+                                        Box(
                                             modifier = Modifier
                                                 .align(Alignment.TopStart)
-                                                .padding(4.dp)
+                                                .padding(6.dp)
                                                 .size(24.dp)
                                                 .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                                                .clickable { onCopyLink(file) },
+                                            contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = ShareIcon,
@@ -2361,85 +2401,105 @@ fun SettingsTabContent(
 fun ImmersiveMediaViewer(
     serverUrl: String,
     token: String,
-    filePath: String,
-    fileName: String,
-    isPublic: Boolean,
-    isFavourite: Boolean,
-    tags: List<TagItem>,
+    mediaFiles: List<CloudFile>,
+    initialIndex: Int,
+    currentPath: String,
     onClose: () -> Unit,
-    onToggleFavorite: (Boolean) -> Unit,
-    onTogglePublic: (Boolean) -> Unit,
-    onDownload: () -> Unit,
-    onShare: () -> Unit
+    onToggleFavorite: (CloudFile, Boolean) -> Unit,
+    onTogglePublic: (CloudFile, Boolean) -> Unit,
+    onDownload: (CloudFile) -> Unit,
+    onShare: (CloudFile) -> Unit
 ) {
-    val isVideo = MimeTypeMap.getFileExtensionFromUrl(fileName).lowercase() in listOf("mp4", "webm", "mov", "mkv")
-
-    var scale by remember { mutableStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
+    if (mediaFiles.isEmpty()) return
+    val pagerState = rememberPagerState(initialPage = initialIndex) { mediaFiles.size }
+    val currentFile = mediaFiles.getOrNull(pagerState.currentPage) ?: return
+    val isVideo = MimeTypeMap.getFileExtensionFromUrl(currentFile.name).lowercase() in listOf("mp4", "webm", "mov", "mkv")
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.95f))
     ) {
-        // Immersive Player / Image view
-        if (isVideo) {
-            val encodedSegments = filePath.split('/').map { Uri.encode(it) }
-            val cleanPath = encodedSegments.joinToString("/")
-            val streamUrl = "$serverUrl/file/$cleanPath"
-            VideoPlayer(
-                videoUrl = streamUrl,
-                token = token,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.Center)
-            )
-        } else {
-            // Zoomable AsyncServerImage
-            var localBitmap by remember(filePath) { mutableStateOf<ImageBitmap?>(null) }
-            var isImageLoading by remember(filePath) { mutableStateOf(true) }
+        // Immersive Player / Image view inside Pager
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { pageIndex ->
+            val file = mediaFiles[pageIndex]
+            val path = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+            val isPageVideo = MimeTypeMap.getFileExtensionFromUrl(file.name).lowercase() in listOf("mp4", "webm", "mov", "mkv")
 
-            LaunchedEffect(filePath) {
-                isImageLoading = true
-                try {
-                    val bitmapObj = fetchBitmapFromUrl(serverUrl, token, filePath, false)
-                    localBitmap = bitmapObj?.asImageBitmap()
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                } finally {
-                    isImageLoading = false
-                }
+            var scale by remember { mutableStateOf(1f) }
+            var offset by remember { mutableStateOf(Offset.Zero) }
+
+            // Reset zoom scale on page change
+            LaunchedEffect(pageIndex) {
+                scale = 1f
+                offset = Offset.Zero
             }
 
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectTransformGestures { _, pan, zoom, _ ->
-                            scale = (scale * zoom).coerceIn(1f, 5f)
-                            offset = if (scale > 1f) offset + pan else Offset.Zero
-                        }
-                    },
+                modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                if (isImageLoading) {
-                    CircularProgressIndicator(color = Color(0xFFBB86FC))
-                } else if (localBitmap != null) {
-                    Image(
-                        bitmap = localBitmap!!,
-                        contentDescription = fileName,
+                if (isPageVideo) {
+                    val encodedSegments = path.split('/').map { Uri.encode(it) }
+                    val cleanPath = encodedSegments.joinToString("/")
+                    val streamUrl = "$serverUrl/file/$cleanPath"
+                    VideoPlayer(
+                        videoUrl = streamUrl,
+                        token = token,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .graphicsLayer(
-                                scaleX = scale,
-                                scaleY = scale,
-                                translationX = offset.x,
-                                translationY = offset.y
-                            ),
-                        contentScale = ContentScale.Fit
+                            .align(Alignment.Center)
                     )
                 } else {
-                    Icon(Icons.Default.Warning, contentDescription = "Error", tint = Color.Red)
+                    var localBitmap by remember(path) { mutableStateOf<ImageBitmap?>(null) }
+                    var isImageLoading by remember(path) { mutableStateOf(true) }
+
+                    LaunchedEffect(path) {
+                        isImageLoading = true
+                        try {
+                            val bitmapObj = fetchBitmapFromUrl(serverUrl, token, path, false)
+                            localBitmap = bitmapObj?.asImageBitmap()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        } finally {
+                            isImageLoading = false
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                detectTransformGestures { _, pan, zoom, _ ->
+                                    scale = (scale * zoom).coerceIn(1f, 5f)
+                                    offset = if (scale > 1f) offset + pan else Offset.Zero
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isImageLoading) {
+                            CircularProgressIndicator(color = Color(0xFFBB86FC))
+                        } else if (localBitmap != null) {
+                            Image(
+                                bitmap = localBitmap!!,
+                                contentDescription = file.name,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer(
+                                        scaleX = scale,
+                                        scaleY = scale,
+                                        translationX = offset.x,
+                                        translationY = offset.y
+                                    ),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            Icon(Icons.Default.Warning, contentDescription = "Error", tint = Color.Red)
+                        }
+                    }
                 }
             }
         }
@@ -2457,7 +2517,7 @@ fun ImmersiveMediaViewer(
             }
 
             Text(
-                text = fileName,
+                text = currentFile.name,
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
@@ -2468,18 +2528,18 @@ fun ImmersiveMediaViewer(
             )
 
             Row {
-                IconButton(onClick = { onToggleFavorite(!isFavourite) }) {
+                IconButton(onClick = { onToggleFavorite(currentFile, !currentFile.isFavourite) }) {
                     Icon(
-                        imageVector = if (isFavourite) StarIcon else StarBorderIcon,
+                        imageVector = if (currentFile.isFavourite) StarIcon else StarBorderIcon,
                         contentDescription = "Favorite",
-                        tint = if (isFavourite) Color(0xFFFFD700) else Color.White
+                        tint = if (currentFile.isFavourite) Color(0xFFFFD700) else Color.White
                     )
                 }
-                IconButton(onClick = onDownload) {
+                IconButton(onClick = { onDownload(currentFile) }) {
                     Icon(DownloadIcon, contentDescription = "Download", tint = Color.White)
                 }
-                if (isPublic) {
-                    IconButton(onClick = onShare) {
+                if (currentFile.isPublic) {
+                    IconButton(onClick = { onShare(currentFile) }) {
                         Icon(ShareIcon, contentDescription = "Share", tint = Color(0xFF03DAC6))
                     }
                 }
@@ -2512,8 +2572,8 @@ fun ImmersiveMediaViewer(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Public Access", color = Color(0xFFA0A0C0), fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
                         androidx.compose.material3.Switch(
-                            checked = isPublic,
-                            onCheckedChange = { onTogglePublic(it) },
+                            checked = currentFile.isPublic,
+                            onCheckedChange = { onTogglePublic(currentFile, it) },
                             colors = androidx.compose.material3.SwitchDefaults.colors(
                                 checkedThumbColor = Color(0xFF03DAC6),
                                 checkedTrackColor = Color(0xFF03DAC6).copy(alpha = 0.4f)
@@ -2522,12 +2582,12 @@ fun ImmersiveMediaViewer(
                     }
                 }
 
-                if (tags.isNotEmpty()) {
+                if (currentFile.tags.isNotEmpty()) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.horizontalScroll(rememberScrollState())
                     ) {
-                        tags.forEach { tag ->
+                        currentFile.tags.forEach { tag ->
                             Box(
                                 modifier = Modifier
                                     .background(Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.2f), RoundedCornerShape(6.dp))
