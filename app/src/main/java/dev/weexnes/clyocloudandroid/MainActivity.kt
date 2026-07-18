@@ -31,6 +31,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroidSize
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -2539,10 +2546,13 @@ fun ImmersiveMediaViewer(
                         modifier = Modifier
                             .fillMaxSize()
                             .pointerInput(Unit) {
-                                detectTransformGestures { _, pan, zoom, _ ->
-                                    scale = (scale * zoom).coerceIn(1f, 5f)
-                                    offset = if (scale > 1f) offset + pan else Offset.Zero
-                                }
+                                detectZoomPanGestures(
+                                    scaleProvider = { scale },
+                                    onGesture = { pan, zoom ->
+                                        scale = (scale * zoom).coerceIn(1f, 5f)
+                                        offset = if (scale > 1f) offset + pan else Offset.Zero
+                                    }
+                                )
                             },
                         contentAlignment = Alignment.Center
                     ) {
@@ -2611,6 +2621,62 @@ fun ImmersiveMediaViewer(
                 }
             }
         }
+    }
+}
+
+// Custom gesture detector helper to resolve Zoom vs Pager Swipe conflicts
+suspend fun PointerInputScope.detectZoomPanGestures(
+    scaleProvider: () -> Float,
+    onGesture: (pan: Offset, zoom: Float) -> Unit
+) {
+    awaitEachGesture {
+        var zoom = 1f
+        var pan = Offset.Zero
+        var pastTouchSlop = false
+        val touchSlop = viewConfiguration.touchSlop
+
+        awaitFirstDown(requireUnconsumed = false)
+        do {
+            val event = awaitPointerEvent()
+            val canceled = event.changes.any { it.isConsumed }
+            if (!canceled) {
+                val zoomChange = event.calculateZoom()
+                val panChange = event.calculatePan()
+
+                if (!pastTouchSlop) {
+                    zoom *= zoomChange
+                    pan += panChange
+
+                    val centroidSize = event.calculateCentroidSize(useCurrent = false)
+                    val zoomMotion = kotlin.math.abs(1 - zoom) * centroidSize
+                    val panMotion = pan.getDistance()
+
+                    if (zoomMotion > touchSlop || panMotion > touchSlop) {
+                        pastTouchSlop = true
+                    }
+                }
+
+                if (pastTouchSlop) {
+                    val scale = scaleProvider()
+                    val isPinch = event.changes.size > 1
+                    
+                    if (zoomChange != 1f || panChange != Offset.Zero) {
+                        onGesture(panChange, zoomChange)
+                    }
+                    
+                    event.changes.forEach {
+                        if (it.positionChanged()) {
+                            // Only consume the pointer event if we are actively pinching (zooming)
+                            // or if the image is already zoomed in (scale > 1f).
+                            // This allows normal 1-finger swipes to bubble up to the HorizontalPager!
+                            if (isPinch || scale > 1f) {
+                                it.consume()
+                            }
+                        }
+                    }
+                }
+            }
+        } while (!canceled && event.changes.any { it.pressed })
     }
 }
 
