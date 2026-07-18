@@ -15,6 +15,11 @@ import android.webkit.MimeTypeMap
 import android.widget.MediaController
 import android.widget.Toast
 import android.widget.VideoView
+import android.graphics.ImageDecoder
+import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.Drawable
+import android.widget.ImageView
+import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -58,6 +63,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -118,6 +125,81 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 // Custom Vector Icons for clean build without extra material-icons-extended dependency
+val GridViewIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "GridView",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(4f, 4f)
+        lineTo(11f, 4f)
+        lineTo(11f, 11f)
+        lineTo(4f, 11f)
+        close()
+        moveTo(4f, 13f)
+        lineTo(11f, 13f)
+        lineTo(11f, 20f)
+        lineTo(4f, 20f)
+        close()
+        moveTo(13f, 4f)
+        lineTo(20f, 4f)
+        lineTo(20f, 11f)
+        lineTo(13f, 11f)
+        close()
+        moveTo(13f, 13f)
+        lineTo(20f, 13f)
+        lineTo(20f, 20f)
+        lineTo(13f, 20f)
+        close()
+    }.build()
+
+val ListViewIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "ListView",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(4f, 18f)
+        lineTo(20f, 18f)
+        lineTo(20f, 20f)
+        lineTo(4f, 20f)
+        close()
+        moveTo(4f, 11f)
+        lineTo(20f, 11f)
+        lineTo(20f, 13f)
+        lineTo(4f, 13f)
+        close()
+        moveTo(4f, 4f)
+        lineTo(20f, 4f)
+        lineTo(20f, 6f)
+        lineTo(4f, 6f)
+        close()
+    }.build()
+
+val AutoplayIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "Autoplay",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(12f, 2f)
+        curveTo(6.48f, 2f, 2f, 6.48f, 2f, 12f)
+        curveTo(2f, 17.52f, 6.48f, 22f, 12f, 22f)
+        curveTo(17.52f, 22f, 22f, 17.52f, 22f, 12f)
+        curveTo(22f, 6.48f, 17.52f, 2f, 12f, 2f)
+        close()
+        moveTo(10f, 16.5f)
+        lineTo(10f, 7.5f)
+        lineTo(16f, 12f)
+        close()
+    }.build()
+
 val UploadIcon: ImageVector
     get() = ImageVector.Builder(
         name = "Upload",
@@ -528,7 +610,8 @@ data class CloudFile(
     var isPublic: Boolean,
     var isFavourite: Boolean,
     val description: String?,
-    val tags: List<TagItem>
+    val tags: List<TagItem>,
+    val previewImage: String? = null
 )
 
 data class MediaItem(
@@ -1011,6 +1094,8 @@ fun DashboardScreen(
     var currentTab by remember { mutableStateOf(DashboardTab.Files) }
     var searchQuery by remember { mutableStateOf("") }
     var showFavoritesOnly by remember { mutableStateOf(false) }
+    var isGridView by remember { mutableStateOf(false) }
+    var autoplayPreviews by remember { mutableStateOf(true) }
 
     // Files Tab state
     var currentPath by remember { mutableStateOf("") }
@@ -1200,6 +1285,20 @@ fun DashboardScreen(
                     }
 
                     if (currentTab == DashboardTab.Files) {
+                        IconButton(onClick = { isGridView = !isGridView }) {
+                            Icon(
+                                imageVector = if (isGridView) ListViewIcon else GridViewIcon,
+                                contentDescription = "Toggle View Mode",
+                                tint = Color(0xFFBB86FC)
+                            )
+                        }
+                        IconButton(onClick = { autoplayPreviews = !autoplayPreviews }) {
+                            Icon(
+                                imageVector = AutoplayIcon,
+                                contentDescription = "Autoplay Previews",
+                                tint = if (autoplayPreviews) Color(0xFF03DAC6) else Color(0xFFA0A0C0)
+                            )
+                        }
                         IconButton(onClick = { selectFilesLauncher.launch("*/*") }) {
                             Icon(
                                 imageVector = UploadIcon,
@@ -1275,6 +1374,8 @@ fun DashboardScreen(
                             isLoading = isFilesLoading,
                             searchQuery = searchQuery,
                             showFavoritesOnly = showFavoritesOnly,
+                            isGridView = isGridView,
+                            autoplayPreviews = autoplayPreviews,
                             onPathChanged = { newPath -> currentPath = newPath },
                             onFileClick = { file -> activeViewerFile = file },
                             onToggleFavorite = { file, isFav ->
@@ -1660,6 +1761,8 @@ fun FilesTabContent(
     isLoading: Boolean,
     searchQuery: String,
     showFavoritesOnly: Boolean,
+    isGridView: Boolean,
+    autoplayPreviews: Boolean,
     onPathChanged: (String) -> Unit,
     onFileClick: (CloudFile) -> Unit,
     onToggleFavorite: (CloudFile, Boolean) -> Unit,
@@ -1718,130 +1821,337 @@ fun FilesTabContent(
                 Text("No files found", color = Color(0xFFA0A0C0))
             }
         } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filteredFiles) { file ->
-                    var isMenuExpanded by remember { mutableStateOf(false) }
-                    
-                    GlassCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                if (file.isFolder) {
-                                    val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                    onPathChanged(newPath)
-                                } else {
-                                    onFileClick(file)
+            if (isGridView) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 110.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(filteredFiles) { file ->
+                        var isMenuExpanded by remember { mutableStateOf(false) }
+                        val fileRelativePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+
+                        GlassCard(
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (file.isFolder) {
+                                        val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                        onPathChanged(newPath)
+                                    } else {
+                                        onFileClick(file)
+                                    }
                                 }
-                            }
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (file.isFolder) FolderIcon else FileIcon,
-                                    contentDescription = null,
-                                    tint = if (file.isFolder) Color(0xFFBB86FC) else Color(0xFF03DAC6),
-                                    modifier = Modifier.size(32.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = file.name,
-                                        color = Color.White,
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Column {
+                                // Thumbnail / Preview Area
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(1f)
+                                        .background(Color.Black.copy(alpha = 0.2f))
+                                ) {
+                                    if (file.isFolder) {
+                                        if (file.previewImage != null) {
+                                            AsyncServerImage(
+                                                serverUrl = serverUrl,
+                                                token = token,
+                                                relativePath = "$fileRelativePath/${file.previewImage}",
+                                                isThumbnail = true,
+                                                contentDescription = file.name,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = FolderIcon,
+                                                contentDescription = null,
+                                                tint = Color(0xFFBB86FC),
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .align(Alignment.Center)
+                                            )
+                                        }
+                                    } else {
+                                        if (hasThumbnail(file.name)) {
+                                            if (isVideoFile(file.name) && autoplayPreviews) {
+                                                RemoteGifPlayer(
+                                                    serverUrl = serverUrl,
+                                                    token = token,
+                                                    relativePath = fileRelativePath,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                AsyncServerImage(
+                                                    serverUrl = serverUrl,
+                                                    token = token,
+                                                    relativePath = fileRelativePath,
+                                                    isThumbnail = true,
+                                                    contentDescription = file.name,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            }
+                                        } else {
+                                            Icon(
+                                                imageVector = if (isVideoFile(file.name)) PlayIcon else FileIcon,
+                                                contentDescription = null,
+                                                tint = Color(0xFF03DAC6),
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .align(Alignment.Center)
+                                            )
+                                        }
+                                    }
+
+                                    // Star/Favorite top-right overlay
+                                    IconButton(
+                                        onClick = { onToggleFavorite(file, !file.isFavourite) },
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(4.dp)
+                                            .size(24.dp)
+                                            .background(Color.Black.copy(alpha = 0.4f), CircleShape)
                                     ) {
-                                        Text(
-                                            text = if (file.isFolder) "Folder" else formatFileSize(file.size),
-                                            color = Color(0xFFA0A0C0),
-                                            fontSize = 11.sp
+                                        Icon(
+                                            imageVector = if (file.isFavourite) StarIcon else StarBorderIcon,
+                                            contentDescription = "Favorite",
+                                            tint = if (file.isFavourite) Color(0xFFFFD700) else Color(0xFFA0A0C0),
+                                            modifier = Modifier.size(14.dp)
                                         )
-                                        if (file.isPublic) {
-                                            Text(
-                                                text = "Shared",
-                                                color = Color(0xFF03DAC6),
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold
+                                    }
+
+                                    // Quick Copy Link overlay if shared
+                                    if (file.isPublic) {
+                                        IconButton(
+                                            onClick = { onCopyLink(file) },
+                                            modifier = Modifier
+                                                .align(Alignment.TopStart)
+                                                .padding(4.dp)
+                                                .size(24.dp)
+                                                .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                                        ) {
+                                            Icon(
+                                                imageVector = ShareIcon,
+                                                contentDescription = "Copy Link",
+                                                tint = Color(0xFF03DAC6),
+                                                modifier = Modifier.size(12.dp)
                                             )
                                         }
                                     }
                                 }
 
-                                // Toggle Favorite icon directly
-                                IconButton(onClick = { onToggleFavorite(file, !file.isFavourite) }) {
-                                    Icon(
-                                        imageVector = if (file.isFavourite) StarIcon else StarBorderIcon,
-                                        contentDescription = "Favorite",
-                                        tint = if (file.isFavourite) Color(0xFFFFD700) else Color(0xFFA0A0C0),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-
-                                // Quick share/link button
-                                if (file.isPublic) {
-                                    IconButton(onClick = { onCopyLink(file) }) {
-                                        Icon(ShareIcon, contentDescription = "Copy Link", tint = Color(0xFF03DAC6), modifier = Modifier.size(18.dp))
+                                // Metadata Area
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = file.name,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = if (file.isFolder) "Folder" else formatFileSize(file.size),
+                                            color = Color(0xFFA0A0C0),
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                    Box {
+                                        IconButton(
+                                            onClick = { isMenuExpanded = true },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = MoreVertIcon,
+                                                contentDescription = "Actions",
+                                                tint = Color(0xFFA0A0C0),
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = isMenuExpanded,
+                                            onDismissRequest = { isMenuExpanded = false },
+                                            modifier = Modifier.background(Color(0xFF1E1E2C))
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text(if (file.isPublic) "Make Private" else "Make Public", color = Color(0xFFBB86FC), fontSize = 13.sp) },
+                                                onClick = { onTogglePublic(file, !file.isPublic); isMenuExpanded = false }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Edit Tags", color = Color(0xFF03DAC6), fontSize = 13.sp) },
+                                                onClick = { onEditTags(file); isMenuExpanded = false }
+                                            )
+                                            if (!file.isFolder) {
+                                                DropdownMenuItem(
+                                                    text = { Text("Download", color = Color.White, fontSize = 13.sp) },
+                                                    onClick = { onDownload(file); isMenuExpanded = false }
+                                                )
+                                            }
+                                            DropdownMenuItem(
+                                                text = { Text("Delete", color = Color(0xFFFF5252), fontSize = 13.sp) },
+                                                onClick = { onDelete(file); isMenuExpanded = false }
+                                            )
+                                        }
                                     }
                                 }
 
-                                // Options menu expander
-                                IconButton(onClick = { isMenuExpanded = !isMenuExpanded }) {
-                                    Icon(MoreVertIcon, contentDescription = "Actions", tint = Color(0xFFA0A0C0), modifier = Modifier.size(20.dp))
-                                }
-                            }
-
-                            // Tags Display
-                            if (file.tags.isNotEmpty()) {
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    modifier = Modifier.horizontalScroll(rememberScrollState())
-                                ) {
-                                    file.tags.forEach { tag ->
-                                        Box(
-                                            modifier = Modifier
-                                                .background(Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.2f), RoundedCornerShape(4.dp))
-                                                .border(1.dp, Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.6f), RoundedCornerShape(4.dp))
-                                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(tag.name, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                // Tags display (mini color dots)
+                                if (file.tags.isNotEmpty()) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        file.tags.take(4).forEach { tag ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(6.dp)
+                                                    .background(Color(android.graphics.Color.parseColor(tag.color)), CircleShape)
+                                            )
                                         }
                                     }
                                 }
                             }
-
-                            // Expanded Actions drawer
-                            if (isMenuExpanded) {
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.08f), modifier = Modifier.padding(vertical = 8.dp))
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredFiles) { file ->
+                        var isMenuExpanded by remember { mutableStateOf(false) }
+                        
+                        GlassCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (file.isFolder) {
+                                        val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                        onPathChanged(newPath)
+                                    } else {
+                                        onFileClick(file)
+                                    }
+                                }
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceAround
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    TextButton(onClick = { onTogglePublic(file, !file.isPublic); isMenuExpanded = false }) {
-                                        Text(if (file.isPublic) "Make Private" else "Make Public", color = Color(0xFFBB86FC), fontSize = 12.sp)
-                                    }
-                                    TextButton(onClick = { onEditTags(file); isMenuExpanded = false }) {
-                                        Text("Edit Tags", color = Color(0xFF03DAC6), fontSize = 12.sp)
-                                    }
-                                    if (!file.isFolder) {
-                                        TextButton(onClick = { onDownload(file); isMenuExpanded = false }) {
-                                            Text("Download", color = Color.White, fontSize = 12.sp)
+                                    Icon(
+                                        imageVector = if (file.isFolder) FolderIcon else FileIcon,
+                                        contentDescription = null,
+                                        tint = if (file.isFolder) Color(0xFFBB86FC) else Color(0xFF03DAC6),
+                                        modifier = Modifier.size(32.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = file.name,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                text = if (file.isFolder) "Folder" else formatFileSize(file.size),
+                                                color = Color(0xFFA0A0C0),
+                                                fontSize = 11.sp
+                                            )
+                                            if (file.isPublic) {
+                                                Text(
+                                                    text = "Shared",
+                                                    color = Color(0xFF03DAC6),
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
-                                    TextButton(onClick = { onDelete(file); isMenuExpanded = false }) {
-                                        Text("Delete", color = Color(0xFFFF5252), fontSize = 12.sp)
+
+                                    // Toggle Favorite icon directly
+                                    IconButton(onClick = { onToggleFavorite(file, !file.isFavourite) }) {
+                                        Icon(
+                                            imageVector = if (file.isFavourite) StarIcon else StarBorderIcon,
+                                            contentDescription = "Favorite",
+                                            tint = if (file.isFavourite) Color(0xFFFFD700) else Color(0xFFA0A0C0),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+
+                                    // Quick share/link button
+                                    if (file.isPublic) {
+                                        IconButton(onClick = { onCopyLink(file) }) {
+                                            Icon(ShareIcon, contentDescription = "Copy Link", tint = Color(0xFF03DAC6), modifier = Modifier.size(18.dp))
+                                        }
+                                    }
+
+                                    // Options menu expander
+                                    IconButton(onClick = { isMenuExpanded = !isMenuExpanded }) {
+                                        Icon(MoreVertIcon, contentDescription = "Actions", tint = Color(0xFFA0A0C0), modifier = Modifier.size(20.dp))
+                                    }
+                                }
+
+                                // Tags Display
+                                if (file.tags.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.horizontalScroll(rememberScrollState())
+                                    ) {
+                                        file.tags.forEach { tag ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.2f), RoundedCornerShape(4.dp))
+                                                    .border(1.dp, Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(tag.name, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Expanded Actions drawer
+                                if (isMenuExpanded) {
+                                    HorizontalDivider(color = Color.White.copy(alpha = 0.08f), modifier = Modifier.padding(vertical = 8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceAround
+                                    ) {
+                                        TextButton(onClick = { onTogglePublic(file, !file.isPublic); isMenuExpanded = false }) {
+                                            Text(if (file.isPublic) "Make Private" else "Make Public", color = Color(0xFFBB86FC), fontSize = 12.sp)
+                                        }
+                                        TextButton(onClick = { onEditTags(file); isMenuExpanded = false }) {
+                                            Text("Edit Tags", color = Color(0xFF03DAC6), fontSize = 12.sp)
+                                        }
+                                        if (!file.isFolder) {
+                                            TextButton(onClick = { onDownload(file); isMenuExpanded = false }) {
+                                                Text("Download", color = Color.White, fontSize = 12.sp)
+                                            }
+                                        }
+                                        TextButton(onClick = { onDelete(file); isMenuExpanded = false }) {
+                                            Text("Delete", color = Color(0xFFFF5252), fontSize = 12.sp)
+                                        }
                                     }
                                 }
                             }
@@ -2313,6 +2623,90 @@ fun AsyncServerImage(
     }
 }
 
+// --- Composable helper: Remote GIF Player for video preview animations ---
+@Composable
+fun RemoteGifPlayer(
+    serverUrl: String,
+    token: String,
+    relativePath: String,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    var drawableState by remember(relativePath) { mutableStateOf<Drawable?>(null) }
+
+    LaunchedEffect(relativePath, token) {
+        withContext(Dispatchers.IO) {
+            val encodedSegments = relativePath.split('/').map { Uri.encode(it) }
+            val cleanPath = encodedSegments.joinToString("/")
+            val url = URL("$serverUrl/preview/$cleanPath")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.setRequestProperty("Authorization", "Bearer $token")
+            conn.connectTimeout = 10000
+            conn.readTimeout = 15000
+            try {
+                if (conn.responseCode == 200) {
+                    val cacheFile = File(context.cacheDir, "gif_preview_${relativePath.hashCode()}.gif")
+                    conn.inputStream.use { input ->
+                        cacheFile.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        val source = ImageDecoder.createSource(cacheFile)
+                        val drawable = ImageDecoder.decodeDrawable(source)
+                        drawableState = drawable
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                conn.disconnect()
+            }
+        }
+    }
+
+    if (drawableState != null) {
+        AndroidView(
+            factory = { ctx ->
+                ImageView(ctx).apply {
+                    scaleType = ImageView.ScaleType.CENTER_CROP
+                }
+            },
+            update = { imageView ->
+                imageView.setImageDrawable(drawableState)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    val d = imageView.drawable
+                    if (d is AnimatedImageDrawable) {
+                        d.start()
+                    }
+                }
+            },
+            modifier = modifier
+        )
+    } else {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = Color(0xFFBB86FC))
+        }
+    }
+}
+
+// File classification helpers matching the website
+fun isVideoFile(fileName: String): Boolean {
+    val ext = fileName.substringAfterLast('.', "").lowercase()
+    return listOf("mp4", "webm", "mov", "mkv", "3gp", "avi").contains(ext)
+}
+
+fun isImageFile(fileName: String): Boolean {
+    val ext = fileName.substringAfterLast('.', "").lowercase()
+    return listOf("jpg", "jpeg", "png", "webp", "gif", "bmp").contains(ext)
+}
+
+fun hasThumbnail(fileName: String): Boolean {
+    val ext = fileName.substringAfterLast('.', "").lowercase()
+    return listOf("jpg", "jpeg", "png", "gif", "mp4", "webm", "mov", "mkv").contains(ext)
+}
+
 // --- Networking & Helpers ---
 
 sealed class LoginResponse {
@@ -2433,6 +2827,7 @@ suspend fun fetchFilesList(serverUrl: String, token: String, path: String): List
             val isPublic = metaObj?.optBoolean("isPublic", false) ?: false
             val isFavourite = metaObj?.optBoolean("isFavourite", false) ?: false
             val description = if (metaObj?.has("description") == true) metaObj.getString("description") else null
+            val previewImage = if (metaObj?.has("previewImage") == true) metaObj.getString("previewImage") else null
             val tagsList = mutableListOf<TagItem>()
             val tagsArr = metaObj?.optJSONArray("tags")
             if (tagsArr != null) {
@@ -2451,7 +2846,8 @@ suspend fun fetchFilesList(serverUrl: String, token: String, path: String): List
                     isPublic = isPublic,
                     isFavourite = isFavourite,
                     description = description,
-                    tags = tagsList
+                    tags = tagsList,
+                    previewImage = previewImage
                 )
             )
         }
