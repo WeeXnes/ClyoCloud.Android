@@ -84,11 +84,9 @@ graph TD
     *   Enter your self-hosted ClyoCloud URL (e.g. `http://10.0.2.2:3000` for default emulator localhost, or your domain/IP).
     *   Log in using your ClyoCloud credentials.
 
----
-
 ## 📖 Documentation
 
-Detailed architectural overviews, security specifications, and setups can be found in the [.docs](file:///home/weexnes/ClyoWallpaper/ClyoCloudAndroid/.docs/docs.json) directory:
-*   [Introduction & Features](file:///home/weexnes/ClyoWallpaper/ClyoCloudAndroid/.docs/introduction.md)
-*   [Architecture & Design Details](file:///home/weexnes/ClyoWallpaper/ClyoCloudAndroid/.docs/architecture.md)
-*   [Setup & Build Guide](file:///home/weexnes/ClyoWallpaper/ClyoCloudAndroid/.docs/setup-guide.md)
+Detailed architectural overviews, security specifications, and setups can be found in the project documentation:
+*   [Introduction & Features Overview](https://weexnes.dev/project/ClyoCloudAndroid?path=introduction.md)
+*   [Architecture & Design Details](https://weexnes.dev/project/ClyoCloudAndroid?path=architecture.md)
+*   [Setup & Build Guide](https://weexnes.dev/project/ClyoCloudAndroid?path=setup-guide.md)
