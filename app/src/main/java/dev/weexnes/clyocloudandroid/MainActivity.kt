@@ -38,6 +38,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -1461,7 +1463,24 @@ fun DashboardScreen(
                             isLoading = isMediaLoading,
                             searchQuery = searchQuery,
                             showFavoritesOnly = showFavoritesOnly,
-                            onMediaClick = { media -> activeViewerMedia = media }
+                            onMediaClick = { media -> activeViewerMedia = media },
+                            onMediaLongClick = { media ->
+                                val mappedFile = CloudFile(
+                                    name = media.name,
+                                    size = media.size,
+                                    type = if (media.type == "video") "video/mp4" else "image/jpeg",
+                                    lastModified = media.lastModified,
+                                    isFolder = false,
+                                    isPublic = media.isPublic,
+                                    isFavourite = media.isFavourite,
+                                    description = media.description,
+                                    tags = media.tags,
+                                    previewImage = null,
+                                    fullPath = media.fullPath
+                                )
+                                fileForTagEdit = mappedFile
+                                showTagEditDialog = true
+                            }
                         )
                     }
                     DashboardTab.Settings -> {
@@ -1593,19 +1612,82 @@ fun DashboardScreen(
             }
         }
 
-        // Tag Edit Dialog
+        // Tag & Share Settings Dialog
         if (showTagEditDialog && fileForTagEdit != null) {
             val file = fileForTagEdit!!
             val selectedTags = remember { mutableStateListOf<TagItem>().apply { addAll(file.tags) } }
+            var isPublicState by remember { mutableStateOf(file.isPublic) }
+            val fullFilePath = file.fullPath ?: (if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}")
+            val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
+
             Dialog(onDismissRequest = { showTagEditDialog = false }) {
                 GlassCard(modifier = Modifier.padding(16.dp)) {
                     Column(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Edit Tags: ${file.name}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        
-                        LazyColumn(modifier = Modifier.height(200.dp)) {
+                        Text(
+                            text = "File Details & Settings",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp
+                        )
+                        Text(
+                            text = file.name,
+                            color = Color(0xFFA0A0C0),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+                        // Public Access Section
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Enable Public Access", color = Color.White, fontSize = 13.sp)
+                                androidx.compose.material3.Switch(
+                                    checked = isPublicState,
+                                    onCheckedChange = { isPublicState = it },
+                                    colors = androidx.compose.material3.SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF03DAC6),
+                                        checkedTrackColor = Color(0xFF03DAC6).copy(alpha = 0.4f)
+                                    )
+                                )
+                            }
+                            if (isPublicState) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = "Public link is active",
+                                        color = Color(0xFF03DAC6),
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Button(
+                                        onClick = { shareText(context, publicUrl, "Share link") },
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF03DAC6)),
+                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        modifier = Modifier.height(28.dp)
+                                    ) {
+                                        Text("Share", color = Color(0xFF0F0C1B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+                        // Tags Section
+                        Text("Tags", color = Color(0xFFBB86FC), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        LazyColumn(modifier = Modifier.height(140.dp)) {
                             items(predefinedTags) { tag ->
                                 val isChecked = selectedTags.any { it.name == tag.name }
                                 Row(
@@ -1619,24 +1701,24 @@ fun DashboardScreen(
                                                 selectedTags.add(tag)
                                             }
                                         }
-                                        .padding(vertical = 8.dp)
+                                        .padding(vertical = 6.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier
-                                            .size(16.dp)
+                                            .size(14.dp)
                                             .background(Color(android.graphics.Color.parseColor(tag.color)), CircleShape)
                                     )
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text(tag.name, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(tag.name, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
                                     if (isChecked) {
-                                        Icon(CheckIcon, contentDescription = "Selected", tint = Color(0xFF03DAC6), modifier = Modifier.size(18.dp))
+                                        Icon(CheckIcon, contentDescription = "Selected", tint = Color(0xFF03DAC6), modifier = Modifier.size(16.dp))
                                     }
                                 }
                             }
                         }
 
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             horizontalArrangement = Arrangement.End
                         ) {
                             TextButton(onClick = { showTagEditDialog = false }) {
@@ -1646,12 +1728,12 @@ fun DashboardScreen(
                             Button(
                                 onClick = {
                                     scope.launch {
-                                        val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                        if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, tags = selectedTags.toList())) {
+                                        if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isPublic = isPublicState, tags = selectedTags.toList())) {
                                             showTagEditDialog = false
                                             triggerFileRefresh()
+                                            triggerMediaRefresh()
                                         } else {
-                                            Toast.makeText(context, "Failed to update tags", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Failed to update settings", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 },
@@ -1682,19 +1764,6 @@ fun DashboardScreen(
                         if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = isFav)) {
                             file.isFavourite = isFav
                             triggerFileRefresh()
-                        }
-                    }
-                },
-                onTogglePublic = { file, isPub ->
-                    scope.launch {
-                        val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                        if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isPublic = isPub)) {
-                            file.isPublic = isPub
-                            triggerFileRefresh()
-                            if (isPub) {
-                                val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
-                                shareText(context, publicUrl, "Share public link")
-                            }
                         }
                     }
                 },
@@ -1753,19 +1822,6 @@ fun DashboardScreen(
                         }
                     }
                 },
-                onTogglePublic = { file, isPub ->
-                    scope.launch {
-                        val fullPath = file.fullPath ?: file.name
-                        if (updateFileMeta(connection.serverUrl, connection.token, fullPath, isPublic = isPub)) {
-                            file.isPublic = isPub
-                            triggerMediaRefresh()
-                            if (isPub) {
-                                val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullPath)}"
-                                shareText(context, publicUrl, "Share public link")
-                            }
-                        }
-                    }
-                },
                 onDownload = { file ->
                     val fullPath = file.fullPath ?: file.name
                     scope.launch {
@@ -1789,6 +1845,7 @@ fun DashboardScreen(
 }
 
 // Files Tab content Composable
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FilesTabContent(
     serverUrl: String,
@@ -1876,14 +1933,19 @@ fun FilesTabContent(
                             shape = RoundedCornerShape(16.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    if (file.isFolder) {
-                                        val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                        onPathChanged(newPath)
-                                    } else {
-                                        onFileClick(file)
+                                .combinedClickable(
+                                    onClick = {
+                                        if (file.isFolder) {
+                                            val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                            onPathChanged(newPath)
+                                        } else {
+                                            onFileClick(file)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        onEditTags(file)
                                     }
-                                }
+                                )
                         ) {
                             Column {
                                 // Thumbnail / Preview Area
@@ -2079,14 +2141,19 @@ fun FilesTabContent(
                         GlassCard(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    if (file.isFolder) {
-                                        val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                        onPathChanged(newPath)
-                                    } else {
-                                        onFileClick(file)
+                                .combinedClickable(
+                                    onClick = {
+                                        if (file.isFolder) {
+                                            val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                            onPathChanged(newPath)
+                                        } else {
+                                            onFileClick(file)
+                                        }
+                                    },
+                                    onLongClick = {
+                                        onEditTags(file)
                                     }
-                                }
+                                )
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
                                 Row(
@@ -2204,6 +2271,7 @@ fun FilesTabContent(
 }
 
 // Media Tab content Composable
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MediaTabContent(
     serverUrl: String,
@@ -2212,7 +2280,8 @@ fun MediaTabContent(
     isLoading: Boolean,
     searchQuery: String,
     showFavoritesOnly: Boolean,
-    onMediaClick: (MediaItem) -> Unit
+    onMediaClick: (MediaItem) -> Unit,
+    onMediaLongClick: (MediaItem) -> Unit
 ) {
     val filteredMedia = mediaList.filter { media ->
         val matchesSearch = media.name.contains(searchQuery, ignoreCase = true)
@@ -2251,7 +2320,10 @@ fun MediaTabContent(
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onMediaClick(media) }
+                        .combinedClickable(
+                            onClick = { onMediaClick(media) },
+                            onLongClick = { onMediaLongClick(media) }
+                        )
                 ) {
                     Column {
                         Box(
@@ -2406,7 +2478,6 @@ fun ImmersiveMediaViewer(
     currentPath: String,
     onClose: () -> Unit,
     onToggleFavorite: (CloudFile, Boolean) -> Unit,
-    onTogglePublic: (CloudFile, Boolean) -> Unit,
     onDownload: (CloudFile) -> Unit,
     onShare: (CloudFile) -> Unit
 ) {
@@ -2542,64 +2613,6 @@ fun ImmersiveMediaViewer(
                     IconButton(onClick = { onShare(currentFile) }) {
                         Icon(ShareIcon, contentDescription = "Share", tint = Color(0xFF03DAC6))
                     }
-                }
-            }
-        }
-
-        // Bottom Details Card
-        GlassCard(
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = if (isVideo) "Video File" else "Image File",
-                        color = Color(0xFF03DAC6),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Public Access", color = Color(0xFFA0A0C0), fontSize = 11.sp, modifier = Modifier.padding(end = 8.dp))
-                        androidx.compose.material3.Switch(
-                            checked = currentFile.isPublic,
-                            onCheckedChange = { onTogglePublic(currentFile, it) },
-                            colors = androidx.compose.material3.SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF03DAC6),
-                                checkedTrackColor = Color(0xFF03DAC6).copy(alpha = 0.4f)
-                            )
-                        )
-                    }
-                }
-
-                if (currentFile.tags.isNotEmpty()) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.horizontalScroll(rememberScrollState())
-                    ) {
-                        currentFile.tags.forEach { tag ->
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.2f), RoundedCornerShape(6.dp))
-                                    .border(1.dp, Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.6f), RoundedCornerShape(6.dp))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
-                            ) {
-                                Text(tag.name, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                } else {
-                    Text("No tags set", color = Color(0xFFA0A0C0).copy(alpha = 0.5f), fontSize = 11.sp)
                 }
             }
         }
