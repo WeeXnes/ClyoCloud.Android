@@ -89,6 +89,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -97,6 +98,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -682,6 +684,101 @@ object PrefsManager {
     }
 }
 
+// ─── Theme System ─────────────────────────────────────────────────────────────
+
+data class ClyoTheme(
+    val name: String,
+    val displayName: String,
+    val accent1: Color,       // primary accent (nav, buttons, highlights)
+    val accent2: Color,       // secondary accent (teal-ish, confirmations)
+    val bgColors: List<Color>, // vertical gradient background
+    val glow1: Color,         // top-start glow blob
+    val glow2: Color,         // bottom-end glow blob
+    val glow3: Color,         // center glow blob
+    val swatchColors: List<Color> // preview swatch gradient
+)
+
+object ClyoThemes {
+    val Obsidian = ClyoTheme(
+        name = "obsidian",
+        displayName = "Obsidian",
+        accent1 = Color(0xFFBB86FC),
+        accent2 = Color(0xFF03DAC6),
+        bgColors = listOf(Color(0xFF080612), Color(0xFF140D26), Color(0xFF05030A)),
+        glow1 = Color(0xFF8A2BE2),
+        glow2 = Color(0xFF00E5FF),
+        glow3 = Color(0xFFFF007F),
+        swatchColors = listOf(Color(0xFF8A2BE2), Color(0xFFBB86FC))
+    )
+    val Neon = ClyoTheme(
+        name = "neon",
+        displayName = "Neon",
+        accent1 = Color(0xFF39FF14),
+        accent2 = Color(0xFFFF00FF),
+        bgColors = listOf(Color(0xFF030803), Color(0xFF0A0F0A), Color(0xFF020302)),
+        glow1 = Color(0xFF39FF14),
+        glow2 = Color(0xFFFF00FF),
+        glow3 = Color(0xFFFFFF00),
+        swatchColors = listOf(Color(0xFF39FF14), Color(0xFFFF00FF))
+    )
+    val Sunrise = ClyoTheme(
+        name = "sunrise",
+        displayName = "Sunrise",
+        accent1 = Color(0xFFFFB347),
+        accent2 = Color(0xFFFF6B6B),
+        bgColors = listOf(Color(0xFF0A0A1A), Color(0xFF1A0A1F), Color(0xFF100518)),
+        glow1 = Color(0xFFFFB347),
+        glow2 = Color(0xFFFF6B6B),
+        glow3 = Color(0xFFFF4081),
+        swatchColors = listOf(Color(0xFFFFB347), Color(0xFFFF6B6B))
+    )
+    val Arctic = ClyoTheme(
+        name = "arctic",
+        displayName = "Arctic",
+        accent1 = Color(0xFF74D7F7),
+        accent2 = Color(0xFFB2F5EA),
+        bgColors = listOf(Color(0xFF050C14), Color(0xFF0C1825), Color(0xFF040810)),
+        glow1 = Color(0xFF74D7F7),
+        glow2 = Color(0xFFB2F5EA),
+        glow3 = Color(0xFFE0F7FA),
+        swatchColors = listOf(Color(0xFF74D7F7), Color(0xFFB2F5EA))
+    )
+    val Forest = ClyoTheme(
+        name = "forest",
+        displayName = "Forest",
+        accent1 = Color(0xFF6BCB77),
+        accent2 = Color(0xFFFFD93D),
+        bgColors = listOf(Color(0xFF040A04), Color(0xFF0A140A), Color(0xFF020602)),
+        glow1 = Color(0xFF6BCB77),
+        glow2 = Color(0xFFFFD93D),
+        glow3 = Color(0xFF00C853),
+        swatchColors = listOf(Color(0xFF6BCB77), Color(0xFFFFD93D))
+    )
+
+    val all = listOf(Obsidian, Neon, Sunrise, Arctic, Forest)
+    fun byName(name: String) = all.firstOrNull { it.name == name } ?: Obsidian
+}
+
+object ThemeManager {
+    private const val PREFS_NAME = "clyo_cloud_prefs"
+    private const val KEY_THEME = "app_theme"
+
+    fun save(context: Context, themeName: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit().putString(KEY_THEME, themeName).apply()
+    }
+
+    fun load(context: Context): ClyoTheme {
+        val name = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getString(KEY_THEME, "obsidian") ?: "obsidian"
+        return ClyoThemes.byName(name)
+    }
+}
+
+val LocalClyoTheme = staticCompositionLocalOf { ClyoThemes.Obsidian }
+
+// ──────────────────────────────────────────────────────────────────────────────
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -696,18 +793,11 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun GlassBackground(content: @Composable () -> Unit) {
+    val theme = LocalClyoTheme.current
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF080612), // Dark obsidian
-                        Color(0xFF140D26), // Dark amethyst
-                        Color(0xFF05030A)  // Core midnight black
-                    )
-                )
-            )
+            .background(Brush.verticalGradient(colors = theme.bgColors))
     ) {
         // Glowing backdrops
         Box(
@@ -719,7 +809,7 @@ fun GlassBackground(content: @Composable () -> Unit) {
                     translationY = -120f
                     alpha = 0.18f
                 }
-                .background(Brush.radialGradient(listOf(Color(0xFF8A2BE2), Color.Transparent)))
+                .background(Brush.radialGradient(listOf(theme.glow1, Color.Transparent)))
         )
         Box(
             modifier = Modifier
@@ -730,7 +820,7 @@ fun GlassBackground(content: @Composable () -> Unit) {
                     translationY = 180f
                     alpha = 0.15f
                 }
-                .background(Brush.radialGradient(listOf(Color(0xFF00E5FF), Color.Transparent)))
+                .background(Brush.radialGradient(listOf(theme.glow2, Color.Transparent)))
         )
         Box(
             modifier = Modifier
@@ -739,7 +829,7 @@ fun GlassBackground(content: @Composable () -> Unit) {
                 .graphicsLayer {
                     alpha = 0.08f
                 }
-                .background(Brush.radialGradient(listOf(Color(0xFFFF007F), Color.Transparent)))
+                .background(Brush.radialGradient(listOf(theme.glow3, Color.Transparent)))
         )
         content()
     }
@@ -802,6 +892,7 @@ fun MainAppRouter() {
     val context = LocalContext.current
     var currentScreen by remember { mutableStateOf(AppScreen.Login) }
     var connection by remember { mutableStateOf<CloudConnection?>(null) }
+    var activeTheme by remember { mutableStateOf(ThemeManager.load(context)) }
 
     LaunchedEffect(Unit) {
         val saved = PrefsManager.getCloudConnection(context)
@@ -813,29 +904,35 @@ fun MainAppRouter() {
         }
     }
 
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
-    ) {
-        when (currentScreen) {
-            AppScreen.Login -> {
-                LoginScreen(
-                    onLoginSuccess = { conn ->
-                        connection = conn
-                        PrefsManager.saveCloudConnection(context, conn)
-                        currentScreen = AppScreen.Dashboard
-                    }
-                )
-            }
-            AppScreen.Dashboard -> {
-                DashboardScreen(
-                    connection = connection,
-                    onDisconnect = {
-                        PrefsManager.clearCloudConnection(context)
-                        connection = null
-                        currentScreen = AppScreen.Login
-                    }
-                )
+    CompositionLocalProvider(LocalClyoTheme provides activeTheme) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            when (currentScreen) {
+                AppScreen.Login -> {
+                    LoginScreen(
+                        onLoginSuccess = { conn ->
+                            connection = conn
+                            PrefsManager.saveCloudConnection(context, conn)
+                            currentScreen = AppScreen.Dashboard
+                        }
+                    )
+                }
+                AppScreen.Dashboard -> {
+                    DashboardScreen(
+                        connection = connection,
+                        onDisconnect = {
+                            PrefsManager.clearCloudConnection(context)
+                            connection = null
+                            currentScreen = AppScreen.Login
+                        },
+                        onThemeChange = { theme ->
+                            ThemeManager.save(context, theme.name)
+                            activeTheme = theme
+                        }
+                    )
+                }
             }
         }
     }
