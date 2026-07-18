@@ -1870,7 +1870,7 @@ fun DashboardScreen(
                         }
                     }
                 }
-            } else {
+            } else if (currentTab != DashboardTab.Shorts) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -2158,6 +2158,7 @@ fun DashboardScreen(
                         ShortsTabContent(
                             serverUrl = connection.serverUrl,
                             token = connection.token,
+                            username = connection.username,
                             shortsList = shortsList,
                             isLoading = isShortsLoading,
                             predefinedTags = predefinedTags,
@@ -4075,7 +4076,7 @@ fun MediaTabContent(
                 )
 
                 Button(
-                    onClick = { onPageChanged((mediaPage + 1).coerceAtLeast(totalPages)) },
+                    onClick = { onPageChanged((mediaPage + 1).coerceAtMost(totalPages)) },
                     enabled = mediaPage < totalPages,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = Color.White.copy(alpha = 0.1f),
@@ -5646,6 +5647,7 @@ fun ShortsSlideshowPlayer(
 fun ShortsTabContent(
     serverUrl: String,
     token: String,
+    username: String,
     shortsList: List<MediaItem>,
     isLoading: Boolean,
     predefinedTags: List<TagItem>,
@@ -5657,10 +5659,11 @@ fun ShortsTabContent(
     var isMuted by remember { mutableStateOf(true) }
     var autoscroll by remember { mutableStateOf(true) }
     var showTagsDialogForMedia by remember { mutableStateOf<MediaItem?>(null) }
+    val theme = LocalClyoTheme.current
 
     if (isLoading) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
+            CircularProgressIndicator(color = theme.accent1)
         }
         return
     }
@@ -5676,7 +5679,7 @@ fun ShortsTabContent(
                 Text("No items found in your Shorts feed.", color = Color(0xFFA0A0C0))
                 Button(
                     onClick = onRefreshFeed,
-                    colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.accent1)
                 ) {
                     Text("Refresh", color = Color(0xFF0F0C1B))
                 }
@@ -5731,158 +5734,297 @@ fun ShortsTabContent(
                     )
                 }
 
+                // Instagram Reels layout - Right Action Sidebar
                 Column(
                     modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .padding(end = 16.dp, bottom = 120.dp)
-                        .background(Color.Black.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
-                        .padding(vertical = 20.dp, horizontal = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 12.dp, bottom = 24.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Like/Favorite
                     var localFav by remember(media.fullPath) { mutableStateOf(media.isFavourite) }
-                    IconButton(
-                        onClick = {
-                            localFav = !localFav
-                            scope.launch {
-                                updateFileMeta(serverUrl, token, media.fullPath, isFavourite = localFav)
-                            }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .combinedClickable(
+                                    onClick = {
+                                        localFav = !localFav
+                                        scope.launch {
+                                            updateFileMeta(serverUrl, token, media.fullPath, isFavourite = localFav)
+                                        }
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = StarIcon,
+                                contentDescription = "Favorite",
+                                tint = if (localFav) Color(0xFFFFD700) else Color.White,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
-                    ) {
-                        Icon(
-                            imageVector = StarIcon,
-                            contentDescription = "Favorite",
-                            tint = if (localFav) Color(0xFFFFD700) else Color.White,
-                            modifier = Modifier.size(28.dp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (localFav) "Liked" else "Like",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
 
-                    IconButton(
-                        onClick = {
-                            val folderPath = if (media.type == "slideshow") {
-                                media.fullPath
-                            } else {
-                                val parts = media.fullPath.split('/')
-                                if (parts.size > 1) parts.dropLast(1).joinToString("/") else ""
-                            }
-                            if (folderPath.isNotEmpty()) {
-                                scope.launch {
-                                    val settings = fetchUserSettings(serverUrl, token)
-                                    if (settings != null) {
-                                        val selectedPaths = mutableListOf<String>()
-                                        val arr = settings.optJSONArray("selectedShortsPaths")
-                                        if (arr != null) {
-                                            for (k in 0 until arr.length()) {
-                                                selectedPaths.add(arr.getString(k))
-                                            }
+                    // Sound Mute Toggle
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .combinedClickable(onClick = { isMuted = !isMuted }),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (isMuted) VolumeOffIcon else VolumeUpIcon,
+                                contentDescription = "Mute Toggle",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isMuted) "Muted" else "Sound",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // AutoScroll / Loop mode
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .combinedClickable(onClick = { autoscroll = !autoscroll }),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = if (autoscroll) AutoplayIcon else PlayIcon,
+                                contentDescription = "Autoscroll Toggle",
+                                tint = if (autoscroll) theme.accent1 else Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (autoscroll) "Auto" else "Loop",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Exclude/Remove Folder
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .combinedClickable(
+                                    onClick = {
+                                        val folderPath = if (media.type == "slideshow") {
+                                            media.fullPath
+                                        } else {
+                                            val parts = media.fullPath.split('/')
+                                            if (parts.size > 1) parts.dropLast(1).joinToString("/") else ""
                                         }
-                                        if (selectedPaths.contains(folderPath)) {
-                                            selectedPaths.remove(folderPath)
-                                            val updatedArr = JSONArray()
-                                            selectedPaths.forEach { updatedArr.put(it) }
-                                            settings.put("selectedShortsPaths", updatedArr)
-                                            if (saveUserSettings(serverUrl, token, settings)) {
-                                                Toast.makeText(context, "Folder removed from Shorts feed", Toast.LENGTH_SHORT).show()
-                                                onRefreshFeed()
-                                            } else {
-                                                Toast.makeText(context, "Failed to update settings", Toast.LENGTH_SHORT).show()
+                                        if (folderPath.isNotEmpty()) {
+                                            scope.launch {
+                                                val settings = fetchUserSettings(serverUrl, token)
+                                                if (settings != null) {
+                                                    val selectedPaths = mutableListOf<String>()
+                                                    val arr = settings.optJSONArray("selectedShortsPaths")
+                                                    if (arr != null) {
+                                                        for (k in 0 until arr.length()) {
+                                                            selectedPaths.add(arr.getString(k))
+                                                        }
+                                                    }
+                                                    if (selectedPaths.contains(folderPath)) {
+                                                        selectedPaths.remove(folderPath)
+                                                        val updatedArr = JSONArray()
+                                                        selectedPaths.forEach { updatedArr.put(it) }
+                                                        settings.put("selectedShortsPaths", updatedArr)
+                                                        if (saveUserSettings(serverUrl, token, settings)) {
+                                                            Toast.makeText(context, "Folder removed from Shorts feed", Toast.LENGTH_SHORT).show()
+                                                            onRefreshFeed()
+                                                        } else {
+                                                            Toast.makeText(context, "Failed to update settings", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    } else {
+                                                        Toast.makeText(context, "Folder not in Shorts paths", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                } else {
+                                                    Toast.makeText(context, "Failed to fetch settings", Toast.LENGTH_SHORT).show()
+                                                }
                                             }
                                         } else {
-                                            Toast.makeText(context, "Folder not in Shorts paths", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Cannot remove root folder", Toast.LENGTH_SHORT).show()
                                         }
-                                    } else {
-                                        Toast.makeText(context, "Failed to fetch settings", Toast.LENGTH_SHORT).show()
                                     }
-                                }
-                            } else {
-                                Toast.makeText(context, "Cannot remove root folder", Toast.LENGTH_SHORT).show()
-                            }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = DeleteIcon,
+                                contentDescription = "Exclude Folder",
+                                tint = Color(0xFFEF5350),
+                                modifier = Modifier.size(22.dp)
+                            )
                         }
-                    ) {
-                        Icon(
-                            imageVector = DeleteIcon,
-                            contentDescription = "Remove Folder",
-                            tint = Color(0xFFEF5350),
-                            modifier = Modifier.size(26.dp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Exclude",
+                            color = Color(0xFFEF5350),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
 
-                    IconButton(
-                        onClick = { isMuted = !isMuted }
-                    ) {
-                        Icon(
-                            imageVector = if (isMuted) VolumeOffIcon else VolumeUpIcon,
-                            contentDescription = "Mute Toggle",
-                            tint = Color.White,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { autoscroll = !autoscroll }
-                    ) {
-                        Icon(
-                            imageVector = if (autoscroll) AutoplayIcon else PlayIcon,
-                            contentDescription = "Autoscroll Toggle",
-                            tint = if (autoscroll) LocalClyoTheme.current.accent1 else Color.White,
-                            modifier = Modifier.size(26.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = onRefreshFeed
-                    ) {
-                        Icon(
-                            imageVector = RefreshIcon,
-                            contentDescription = "Refresh Feed",
-                            tint = Color.White,
-                            modifier = Modifier.size(26.dp)
+                    // Refresh Feed
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.5f))
+                                .combinedClickable(onClick = onRefreshFeed),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = RefreshIcon,
+                                contentDescription = "Refresh Feed",
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Refresh",
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
 
+                // Instagram Reels layout - Bottom-Left Info Overlay
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
-                        .fillMaxWidth(0.75f)
-                        .padding(start = 16.dp, bottom = 120.dp),
+                        .fillMaxWidth(0.7f)
+                        .padding(start = 16.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Profile/User row
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Circular avatar with gradient
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(theme.accent1, theme.accent2)
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = username.take(1).uppercase(),
+                                color = Color(0xFF0F0C1B),
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Text(
+                            text = "@$username",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Filename
                     Text(
                         text = media.name,
                         color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
 
+                    // Description (if any)
+                    if (!media.description.isNullOrBlank()) {
+                        Text(
+                            text = media.description,
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 12.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    // Tags row
                     val currentMediaTags = media.tags
-                    Row(
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        currentMediaTags.forEach { tag ->
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                                    .border(1.dp, Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 10.dp, vertical = 4.dp)
-                            ) {
-                                Text(tag.name, color = Color(android.graphics.Color.parseColor(tag.color)), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    if (currentMediaTags.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            currentMediaTags.forEach { tag ->
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                        .border(1.dp, Color(android.graphics.Color.parseColor(tag.color)).copy(alpha = 0.6f), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        text = tag.name,
+                                        color = Color(android.graphics.Color.parseColor(tag.color)),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
                         }
                     }
 
-                    Button(
-                        onClick = { showTagsDialogForMedia = media },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f)),
-                        shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    // Manage Tags capsule button
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.White.copy(alpha = 0.15f))
+                            .combinedClickable(onClick = { showTagsDialogForMedia = media })
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
                     ) {
-                        Icon(FileIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Manage Tags", color = Color.White, fontSize = 12.sp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(FileIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Text("Manage Tags", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
