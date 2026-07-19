@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ClyoCloudAndroid"
+rootProject.name = "ClyoCloud"
 include(":app")

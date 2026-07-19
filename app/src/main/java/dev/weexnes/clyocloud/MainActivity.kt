@@ -1,4 +1,4 @@
-package dev.weexnes.clyocloudandroid
+package dev.weexnes.clyocloud
 
 import android.content.ContentValues
 import android.content.Context
@@ -133,7 +133,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
-import dev.weexnes.clyocloudandroid.ui.theme.ClyoCloudAndroidTheme
+import dev.weexnes.clyocloud.ui.theme.ClyoCloudTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -947,7 +947,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            ClyoCloudAndroidTheme {
+            ClyoCloudTheme {
                 MainAppRouter()
             }
         }
@@ -1972,7 +1972,7 @@ fun DashboardScreen(
             }
 
             // Search Bar (Files & Media)
-            if (currentTab != DashboardTab.Settings) {
+            if (currentTab != DashboardTab.Settings && currentTab != DashboardTab.Shorts) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()

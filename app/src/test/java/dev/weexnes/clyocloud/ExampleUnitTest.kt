@@ -1,4 +1,4 @@
-package dev.weexnes.clyocloudandroid
+package dev.weexnes.clyocloud
 
 import org.junit.Test
 

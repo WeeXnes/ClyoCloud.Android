@@ -1,4 +1,4 @@
-package dev.weexnes.clyocloudandroid.ui.theme
+package dev.weexnes.clyocloud.ui.theme
 
 import android.app.Activity
 import android.os.Build
@@ -34,7 +34,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 @Composable
-fun ClyoCloudAndroidTheme(
+fun ClyoCloudTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
     dynamicColor: Boolean = true,
