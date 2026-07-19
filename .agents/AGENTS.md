@@ -8,3 +8,6 @@
 - **Git Commits**:
   - Always stage all modified files (`git add .`).
   - Always commit the changes with a fitting descriptive message (`git commit -m "<message>"`).
+- **Verification**:
+  - Always attempt to compile and build the app (e.g., using `./gradlew assembleDebug` or equivalent) to verify correctness before finishing.
+
