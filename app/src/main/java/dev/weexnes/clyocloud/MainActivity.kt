@@ -146,6 +146,93 @@ import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.barcode.common.Barcode
+
+
+val QrCodeIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "QrCode",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(3f, 3f)
+        lineTo(3f, 9f)
+        lineTo(9f, 9f)
+        lineTo(9f, 3f)
+        lineTo(3f, 3f)
+        close()
+        moveTo(7f, 7f)
+        lineTo(5f, 7f)
+        lineTo(5f, 5f)
+        lineTo(7f, 5f)
+        lineTo(7f, 7f)
+        close()
+        
+        moveTo(3f, 15f)
+        lineTo(3f, 21f)
+        lineTo(9f, 21f)
+        lineTo(9f, 15f)
+        lineTo(3f, 15f)
+        close()
+        moveTo(7f, 19f)
+        lineTo(5f, 19f)
+        lineTo(5f, 17f)
+        lineTo(7f, 17f)
+        lineTo(7f, 19f)
+        close()
+        
+        moveTo(15f, 3f)
+        lineTo(15f, 9f)
+        lineTo(21f, 9f)
+        lineTo(21f, 3f)
+        lineTo(15f, 3f)
+        close()
+        moveTo(19f, 7f)
+        lineTo(17f, 7f)
+        lineTo(17f, 5f)
+        lineTo(19f, 5f)
+        lineTo(19f, 7f)
+        close()
+        
+        moveTo(15f, 15f)
+        lineTo(15f, 17f)
+        lineTo(17f, 17f)
+        lineTo(17f, 15f)
+        lineTo(15f, 15f)
+        close()
+        
+        moveTo(17f, 17f)
+        lineTo(17f, 19f)
+        lineTo(19f, 19f)
+        lineTo(19f, 17f)
+        lineTo(17f, 17f)
+        close()
+        
+        moveTo(19f, 19f)
+        lineTo(19f, 21f)
+        lineTo(21f, 21f)
+        lineTo(21f, 19f)
+        lineTo(19f, 19f)
+        close()
+        
+        moveTo(21f, 15f)
+        lineTo(21f, 17f)
+        lineTo(19f, 17f)
+        lineTo(19f, 15f)
+        lineTo(21f, 15f)
+        close()
+        
+        moveTo(15f, 19f)
+        lineTo(15f, 21f)
+        lineTo(17f, 21f)
+        lineTo(17f, 19f)
+        lineTo(15f, 19f)
+        close()
+    }.build()
 
 val DeleteIcon: ImageVector
     get() = ImageVector.Builder(
@@ -1290,6 +1377,73 @@ fun LoginScreen(onLoginSuccess: (CloudConnection) -> Unit) {
                                 CircularProgressIndicator(color = Color(0xFF0F0C1B), modifier = Modifier.size(24.dp))
                             } else {
                                 Text("Connect Server", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        val context = LocalContext.current
+                        Button(
+                            onClick = {
+                                val options = GmsBarcodeScannerOptions.Builder()
+                                    .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                                    .build()
+                                val scanner = GmsBarcodeScanning.getClient(context, options)
+                                errorMessage = null
+                                scanner.startScan()
+                                    .addOnSuccessListener { barcode ->
+                                        val rawValue = barcode.rawValue
+                                        if (rawValue != null) {
+                                            coroutineScope.launch {
+                                                isLoading = true
+                                                try {
+                                                    val json = JSONObject(rawValue)
+                                                    val serverUrlVal = json.getString("serverUrl")
+                                                    val usernameVal = json.getString("username")
+                                                    val tokenVal = json.getString("token")
+                                                    
+                                                    val isValid = testToken(serverUrlVal, tokenVal)
+                                                    if (isValid) {
+                                                        onLoginSuccess(CloudConnection(serverUrlVal, usernameVal, tokenVal))
+                                                    } else {
+                                                        errorMessage = "Invalid connection settings or expired token"
+                                                    }
+                                                } catch (e: Exception) {
+                                                    errorMessage = "Failed to parse QR code content"
+                                                } finally {
+                                                    isLoading = false
+                                                }
+                                            }
+                                        }
+                                    }
+                                    .addOnFailureListener { e ->
+                                        errorMessage = "Scanning failed: ${e.localizedMessage}"
+                                    }
+                            },
+                            enabled = !isLoading,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color.Transparent,
+                                contentColor = LocalClyoTheme.current.accent1,
+                                disabledContainerColor = Color.Transparent,
+                                disabledContentColor = LocalClyoTheme.current.accent1.copy(alpha = 0.3f)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, LocalClyoTheme.current.accent1.copy(alpha = 0.5f))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = QrCodeIcon,
+                                    contentDescription = "Scan QR",
+                                    tint = LocalClyoTheme.current.accent1,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text("Scan QR Code to Login", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                             }
                         }
                     } else {
@@ -5589,6 +5743,28 @@ sealed class LoginResponse {
     data class Success(val token: String) : LoginResponse()
     data class Requires2Fa(val tempToken: String) : LoginResponse()
     data class Error(val message: String) : LoginResponse()
+}
+
+suspend fun testToken(serverUrl: String, token: String): Boolean = withContext(Dispatchers.IO) {
+    var formattedUrl = serverUrl.trim()
+    if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
+        formattedUrl = "http://$formattedUrl"
+    }
+    formattedUrl = formattedUrl.removeSuffix("/")
+    
+    try {
+        val url = URL("$formattedUrl/api/verify")
+        val conn = url.openConnection() as HttpURLConnection
+        conn.requestMethod = "GET"
+        conn.setRequestProperty("Authorization", "Bearer $token")
+        conn.connectTimeout = 5000
+        conn.readTimeout = 5000
+        val code = conn.responseCode
+        code == 200
+    } catch (e: Exception) {
+        Log.e("ClyoCloud", "Token validation failed: ${e.message}")
+        false
+    }
 }
 
 suspend fun loginToCloud(serverUrl: String, user: String, pass: String): LoginResponse = withContext(Dispatchers.IO) {
