@@ -1430,11 +1430,14 @@ fun DashboardScreen(
     val pathStack = remember { mutableStateListOf<String>() }
     var filesList by remember { mutableStateOf<List<CloudFile>>(emptyList()) }
     var isFilesLoading by remember { mutableStateOf(false) }
+    var isFilesRefreshing by remember { mutableStateOf(false) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
 
     // Favorites Tab state
     var favoritesList by remember { mutableStateOf<List<CloudFile>>(emptyList()) }
     var isFavoritesLoading by remember { mutableStateOf(false) }
+    var isFavoritesRefreshing by remember { mutableStateOf(false) }
+    var hideFolders by remember { mutableStateOf(false) }
 
     // Multi-Selection State
     var isSelectionMode by remember { mutableStateOf(false) }
@@ -1919,7 +1922,7 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = when (currentTab) {
                                 DashboardTab.Files -> "Cloud Storage"
@@ -1939,8 +1942,11 @@ fun DashboardScreen(
                         )
                     }
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (currentTab != DashboardTab.Settings) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (currentTab != DashboardTab.Settings && currentTab != DashboardTab.Favorites) {
                             IconButton(onClick = { showFavoritesOnly = !showFavoritesOnly }) {
                                 Icon(
                                     imageVector = if (showFavoritesOnly) StarIcon else StarBorderIcon,
@@ -1950,21 +1956,74 @@ fun DashboardScreen(
                             }
                         }
 
-                        if (currentTab == DashboardTab.Files) {
+                        if (currentTab == DashboardTab.Files || currentTab == DashboardTab.Favorites) {
                             var showSortMenu by remember { mutableStateOf(false) }
                             Box {
                                 IconButton(onClick = { showSortMenu = true }) {
                                     Icon(
                                         imageVector = SortIcon,
-                                        contentDescription = "Sort Files",
+                                        contentDescription = "Display and Sort Options",
                                         tint = Color.White
                                     )
                                 }
                                 DropdownMenu(
                                     expanded = showSortMenu,
                                     onDismissRequest = { showSortMenu = false },
-                                    modifier = Modifier.background(Color(0xFF1E1E2C))
+                                    modifier = Modifier.background(Color(0xFF151221))
                                 ) {
+                                    // View Mode Toggle
+                                    DropdownMenuItem(
+                                        text = { Text(if (isGridView) "Switch to List View" else "Switch to Grid View", color = Color.White, fontSize = 13.sp) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = if (isGridView) ListViewIcon else GridViewIcon,
+                                                contentDescription = null,
+                                                tint = LocalClyoTheme.current.accent1,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        onClick = { isGridView = !isGridView; showSortMenu = false }
+                                    )
+
+                                    // Hide Folders Toggle
+                                    DropdownMenuItem(
+                                        text = { Text(if (hideFolders) "Show Folders" else "Hide Folders", color = Color.White, fontSize = 13.sp) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = FolderIcon,
+                                                contentDescription = null,
+                                                tint = if (hideFolders) Color(0xFFFF5252) else LocalClyoTheme.current.accent1,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        onClick = { hideFolders = !hideFolders; showSortMenu = false }
+                                    )
+
+                                    // Autoplay Previews Toggle (only show if Files tab has video previews)
+                                    DropdownMenuItem(
+                                        text = { Text(if (autoplayPreviews) "Disable Autoplay" else "Enable Autoplay", color = Color.White, fontSize = 13.sp) },
+                                        leadingIcon = {
+                                            Icon(
+                                                imageVector = AutoplayIcon,
+                                                contentDescription = null,
+                                                tint = if (autoplayPreviews) LocalClyoTheme.current.accent2 else Color(0xFFA0A0C0),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        },
+                                        onClick = { autoplayPreviews = !autoplayPreviews; showSortMenu = false }
+                                    )
+
+                                    HorizontalDivider(color = Color.White.copy(alpha = 0.12f), modifier = Modifier.padding(vertical = 4.dp))
+
+                                    // Sort Options Title
+                                    Text(
+                                        text = "  Sort by:",
+                                        color = Color(0xFFA0A0C0),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                                    )
+
                                     DropdownMenuItem(
                                         text = { Text("Name", color = if (sortOption == "name") LocalClyoTheme.current.accent1 else Color.White, fontSize = 13.sp) },
                                         onClick = { sortOption = "name"; showSortMenu = false }
@@ -1979,21 +2038,9 @@ fun DashboardScreen(
                                     )
                                 }
                             }
+                        }
 
-                            IconButton(onClick = { isGridView = !isGridView }) {
-                                Icon(
-                                    imageVector = if (isGridView) ListViewIcon else GridViewIcon,
-                                    contentDescription = "Toggle View Mode",
-                                    tint = LocalClyoTheme.current.accent1
-                                )
-                            }
-                            IconButton(onClick = { autoplayPreviews = !autoplayPreviews }) {
-                                Icon(
-                                    imageVector = AutoplayIcon,
-                                    contentDescription = "Autoplay Previews",
-                                    tint = if (autoplayPreviews) LocalClyoTheme.current.accent2 else Color(0xFFA0A0C0)
-                                )
-                            }
+                        if (currentTab == DashboardTab.Files) {
                             IconButton(onClick = { selectFilesLauncher.launch("*/*") }) {
                                 Icon(
                                     imageVector = UploadIcon,
@@ -2062,22 +2109,25 @@ fun DashboardScreen(
                 when (currentTab) {
                     DashboardTab.Files -> {
                         PullToRefreshBox(
-                            isRefreshing = isFilesLoading,
+                            isRefreshing = isFilesRefreshing,
                             onRefresh = {
-                                isFilesLoading = true
+                                isFilesRefreshing = true
                                 scope.launch {
                                     try {
                                         filesList = fetchFilesList(connection.serverUrl, connection.token, currentPath)
                                     } catch (e: Exception) {
-                                        Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        if (e !is kotlinx.coroutines.CancellationException) {
+                                            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        }
                                     } finally {
-                                        isFilesLoading = false
+                                        isFilesRefreshing = false
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
                         ) {
                             FilesTabContent(
+                                hideFolders = hideFolders,
                                 predefinedTags = predefinedTags,
                                 serverUrl = connection.serverUrl,
                                 token = connection.token,
@@ -2256,9 +2306,9 @@ fun DashboardScreen(
                     }
                     DashboardTab.Favorites -> {
                         PullToRefreshBox(
-                            isRefreshing = isFavoritesLoading,
+                            isRefreshing = isFavoritesRefreshing,
                             onRefresh = {
-                                isFavoritesLoading = true
+                                isFavoritesRefreshing = true
                                 scope.launch {
                                     try {
                                         favoritesList = fetchFavoritesList(connection.serverUrl, connection.token)
@@ -2267,13 +2317,14 @@ fun DashboardScreen(
                                             Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
                                         }
                                     } finally {
-                                        isFavoritesLoading = false
+                                        isFavoritesRefreshing = false
                                     }
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
                         ) {
                             FavoritesTabContent(
+                                hideFolders = hideFolders,
                                 predefinedTags = predefinedTags,
                                 serverUrl = connection.serverUrl,
                                 token = connection.token,
@@ -3678,6 +3729,7 @@ fun DashboardScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FilesTabContent(
+    hideFolders: Boolean,
     predefinedTags: List<TagItem>,
     serverUrl: String,
     token: String,
@@ -3715,13 +3767,38 @@ fun FilesTabContent(
         selectedTagFilter = null
     }
 
-    val sortedFiles = remember(files, searchQuery, showFavoritesOnly, sortOption, selectedTagFilter) {
+    val folderScrollStates = remember<MutableMap<String, Pair<Int, Int>>> { mutableMapOf() }
+
+    val gridState = remember(currentPath, isGridView) {
+        val saved = folderScrollStates[currentPath] ?: Pair(0, 0)
+        androidx.compose.foundation.lazy.grid.LazyGridState(firstVisibleItemIndex = saved.first, firstVisibleItemScrollOffset = saved.second)
+    }
+
+    val listState = remember(currentPath, isGridView) {
+        val saved = folderScrollStates[currentPath] ?: Pair(0, 0)
+        androidx.compose.foundation.lazy.LazyListState(firstVisibleItemIndex = saved.first, firstVisibleItemScrollOffset = saved.second)
+    }
+
+    LaunchedEffect(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset) {
+        if (isGridView) {
+            folderScrollStates[currentPath] = Pair(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+        }
+    }
+
+    LaunchedEffect(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) {
+        if (!isGridView) {
+            folderScrollStates[currentPath] = Pair(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+        }
+    }
+
+    val sortedFiles = remember(files, searchQuery, showFavoritesOnly, sortOption, selectedTagFilter, hideFolders) {
         files.filter { file ->
             val matchesSearch = file.name.contains(searchQuery, ignoreCase = true) ||
                                 file.tags.any { it.name.contains(searchQuery, ignoreCase = true) }
             val matchesFav = !showFavoritesOnly || file.isFavourite
             val matchesTag = selectedTagFilter == null || file.tags.any { it.name.equals(selectedTagFilter, ignoreCase = true) }
-            matchesSearch && matchesFav && matchesTag
+            val matchesFolderHide = !hideFolders || !file.isFolder
+            matchesSearch && matchesFav && matchesTag && matchesFolderHide
         }.sortedWith { a, b ->
             if (a.isFolder != b.isFolder) {
                 if (a.isFolder) -1 else 1
@@ -3850,6 +3927,7 @@ fun FilesTabContent(
         } else {
             if (isGridView) {
                 LazyVerticalGrid(
+                    state = gridState,
                     columns = GridCells.Adaptive(minSize = 110.dp),
                     modifier = Modifier
                         .fillMaxSize()
@@ -4110,6 +4188,7 @@ fun FilesTabContent(
                 }
             } else {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
@@ -4289,6 +4368,7 @@ fun FilesTabContent(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FavoritesTabContent(
+    hideFolders: Boolean,
     predefinedTags: List<TagItem>,
     serverUrl: String,
     token: String,
@@ -4312,12 +4392,13 @@ fun FavoritesTabContent(
     val context = LocalContext.current
     var selectedTagFilter by remember { mutableStateOf<String?>(null) }
 
-    val sortedFiles = remember(files, searchQuery, sortOption, selectedTagFilter) {
+    val sortedFiles = remember(files, searchQuery, sortOption, selectedTagFilter, hideFolders) {
         files.filter { file ->
             val matchesSearch = file.name.contains(searchQuery, ignoreCase = true) ||
                                 file.tags.any { it.name.contains(searchQuery, ignoreCase = true) }
             val matchesTag = selectedTagFilter == null || file.tags.any { it.name.equals(selectedTagFilter, ignoreCase = true) }
-            matchesSearch && matchesTag
+            val matchesFolderHide = !hideFolders || !file.isFolder
+            matchesSearch && matchesTag && matchesFolderHide
         }.sortedWith { a, b ->
             if (a.isFolder != b.isFolder) {
                 if (a.isFolder) -1 else 1
