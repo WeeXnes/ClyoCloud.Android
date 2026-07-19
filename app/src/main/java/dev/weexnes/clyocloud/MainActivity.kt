@@ -1240,6 +1240,8 @@ fun LoginScreen(onLoginSuccess: (CloudConnection) -> Unit) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
+    var showScanConfirmDialog by remember { mutableStateOf(false) }
+    var scannedConnection by remember { mutableStateOf<CloudConnection?>(null) }
 
     GlassBackground {
         Box(
@@ -1394,25 +1396,17 @@ fun LoginScreen(onLoginSuccess: (CloudConnection) -> Unit) {
                                     .addOnSuccessListener { barcode ->
                                         val rawValue = barcode.rawValue
                                         if (rawValue != null) {
-                                            coroutineScope.launch {
-                                                isLoading = true
-                                                try {
-                                                    val json = JSONObject(rawValue)
-                                                    val serverUrlVal = json.getString("serverUrl")
-                                                    val usernameVal = json.getString("username")
-                                                    val tokenVal = json.getString("token")
-                                                    
-                                                    val isValid = testToken(serverUrlVal, tokenVal)
-                                                    if (isValid) {
-                                                        onLoginSuccess(CloudConnection(serverUrlVal, usernameVal, tokenVal))
-                                                    } else {
-                                                        errorMessage = "Invalid connection settings or expired token"
-                                                    }
-                                                } catch (e: Exception) {
-                                                    errorMessage = "Failed to parse QR code content"
-                                                } finally {
-                                                    isLoading = false
-                                                }
+                                            try {
+                                                val json = JSONObject(rawValue)
+                                                val serverUrlVal = json.getString("serverUrl")
+                                                val usernameVal = json.getString("username")
+                                                val tokenVal = json.getString("token")
+                                                
+                                                val mappedUrl = mapLocalhostForEmulator(serverUrlVal)
+                                                scannedConnection = CloudConnection(mappedUrl, usernameVal, tokenVal)
+                                                showScanConfirmDialog = true
+                                            } catch (e: Exception) {
+                                                errorMessage = "Failed to parse QR code content"
                                             }
                                         }
                                     }
@@ -1444,6 +1438,54 @@ fun LoginScreen(onLoginSuccess: (CloudConnection) -> Unit) {
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text("Scan QR Code to Login", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            }
+                        }
+
+                        if (showScanConfirmDialog && scannedConnection != null) {
+                            Dialog(onDismissRequest = { showScanConfirmDialog = false; scannedConnection = null }) {
+                                GlassCard(modifier = Modifier.padding(16.dp)) {
+                                    Column(
+                                        modifier = Modifier.padding(16.dp),
+                                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        Text("Confirm Connection", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                        Text("Connect to:\n${scannedConnection!!.serverUrl}\nas user ${scannedConnection!!.username}?", color = Color(0xFFA0A0C0), fontSize = 13.sp)
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End
+                                        ) {
+                                            TextButton(onClick = { showScanConfirmDialog = false; scannedConnection = null }) {
+                                                Text("Cancel", color = Color(0xFFA0A0C0))
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Button(
+                                                onClick = {
+                                                    val conn = scannedConnection!!
+                                                    showScanConfirmDialog = false
+                                                    scannedConnection = null
+                                                    coroutineScope.launch {
+                                                        isLoading = true
+                                                        try {
+                                                            val isValid = testToken(conn.serverUrl, conn.token)
+                                                            if (isValid) {
+                                                                onLoginSuccess(conn)
+                                                            } else {
+                                                                errorMessage = "Invalid connection settings or expired token"
+                                                            }
+                                                        } catch (e: Exception) {
+                                                            errorMessage = "Error validating credentials: ${e.message}"
+                                                        } finally {
+                                                            isLoading = false
+                                                        }
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                                            ) {
+                                                Text("OK", color = Color(0xFF0F0C1B), fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -5745,8 +5787,20 @@ sealed class LoginResponse {
     data class Error(val message: String) : LoginResponse()
 }
 
+fun mapLocalhostForEmulator(url: String): String {
+    val isEmulator = Build.FINGERPRINT.startsWith("generic")
+            || Build.MODEL.contains("google_sdk")
+            || Build.MODEL.contains("Emulator")
+            || Build.MODEL.contains("Android SDK built for x86")
+    if (isEmulator) {
+        return url.replace("localhost", "10.0.2.2").replace("127.0.0.1", "10.0.2.2")
+    }
+    return url
+}
+
 suspend fun testToken(serverUrl: String, token: String): Boolean = withContext(Dispatchers.IO) {
-    var formattedUrl = serverUrl.trim()
+    val mappedUrl = mapLocalhostForEmulator(serverUrl)
+    var formattedUrl = mappedUrl.trim()
     if (!formattedUrl.startsWith("http://") && !formattedUrl.startsWith("https://")) {
         formattedUrl = "http://$formattedUrl"
     }
