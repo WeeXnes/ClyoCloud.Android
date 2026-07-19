@@ -1486,6 +1486,7 @@ fun DashboardScreen(
 
     // Immersive viewer state
     var activeViewerFile by remember { mutableStateOf<CloudFile?>(null) }
+    var activeViewerMediaList by remember { mutableStateOf<List<CloudFile>>(emptyList()) }
     var activeViewerMedia by remember { mutableStateOf<MediaItem?>(null) }
 
     var uploadProgressText by remember { mutableStateOf<String?>(null) }
@@ -2149,7 +2150,10 @@ fun DashboardScreen(
                                         pathStack.addAll(newPath.split("/"))
                                     }
                                 },
-                                onFileClick = { file -> activeViewerFile = file },
+                                onFileClick = { file, list ->
+                                    activeViewerFile = file
+                                    activeViewerMediaList = list
+                                },
                                 onToggleFavorite = { file, isFav ->
                                      scope.launch {
                                          val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
@@ -2343,7 +2347,10 @@ fun DashboardScreen(
                                     }
                                     currentTab = DashboardTab.Files
                                 },
-                                onFileClick = { file -> activeViewerFile = file },
+                                onFileClick = { file, list ->
+                                    activeViewerFile = file
+                                    activeViewerMediaList = list
+                                },
                                 onToggleFavorite = { file, isFav ->
                                     scope.launch {
                                         val fullFilePath = file.fullPath ?: file.name
@@ -3745,7 +3752,7 @@ fun FilesTabContent(
     isSelectionMode: Boolean,
     selectedFiles: Set<String>,
     onPathChanged: (String) -> Unit,
-    onFileClick: (CloudFile) -> Unit,
+    onFileClick: (CloudFile, List<CloudFile>) -> Unit,
     onToggleFavorite: (CloudFile, Boolean) -> Unit,
     onTogglePublic: (CloudFile, Boolean) -> Unit,
     onCopyLink: (CloudFile) -> Unit,
@@ -3960,7 +3967,7 @@ fun FilesTabContent(
                                                 val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
                                                 onPathChanged(newPath)
                                             } else {
-                                                onFileClick(file)
+                                                onFileClick(file, sortedFiles.filter { !it.isFolder && (isImageFile(it.name) || isVideoFile(it.name)) })
                                             }
                                         }
                                     },
@@ -4217,7 +4224,7 @@ fun FilesTabContent(
                                                 val newPath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
                                                 onPathChanged(newPath)
                                             } else {
-                                                onFileClick(file)
+                                                onFileClick(file, sortedFiles.filter { !it.isFolder && (isImageFile(it.name) || isVideoFile(it.name)) })
                                             }
                                         }
                                     },
@@ -4379,7 +4386,7 @@ fun FavoritesTabContent(
     autoplayPreviews: Boolean,
     sortOption: String,
     onFolderClick: (CloudFile) -> Unit,
-    onFileClick: (CloudFile) -> Unit,
+    onFileClick: (CloudFile, List<CloudFile>) -> Unit,
     onToggleFavorite: (CloudFile, Boolean) -> Unit,
     onTogglePublic: (CloudFile, Boolean) -> Unit,
     onCopyLink: (CloudFile) -> Unit,
@@ -4513,7 +4520,7 @@ fun FavoritesTabContent(
                                     if (file.isFolder) {
                                         onFolderClick(file)
                                     } else {
-                                        onFileClick(file)
+                                        onFileClick(file, sortedFiles.filter { !it.isFolder && (isImageFile(it.name) || isVideoFile(it.name)) })
                                     }
                                 }
                         ) {
@@ -4707,7 +4714,7 @@ fun FavoritesTabContent(
                                     if (file.isFolder) {
                                         onFolderClick(file)
                                     } else {
-                                        onFileClick(file)
+                                        onFileClick(file, sortedFiles.filter { !it.isFolder && (isImageFile(it.name) || isVideoFile(it.name)) })
                                     }
                                 }
                         ) {
