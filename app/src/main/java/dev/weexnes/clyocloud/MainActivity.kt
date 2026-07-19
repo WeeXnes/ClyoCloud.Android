@@ -5811,6 +5811,7 @@ suspend fun testToken(serverUrl: String, token: String): Boolean = withContext(D
         val conn = url.openConnection() as HttpURLConnection
         conn.requestMethod = "GET"
         conn.setRequestProperty("Authorization", "Bearer $token")
+        conn.setRequestProperty("X-Device-Model", "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL}")
         conn.connectTimeout = 5000
         conn.readTimeout = 5000
         val code = conn.responseCode
