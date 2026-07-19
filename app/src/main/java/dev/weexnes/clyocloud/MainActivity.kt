@@ -1574,7 +1574,9 @@ fun DashboardScreen(
         try {
             filesList = fetchFilesList(connection.serverUrl, connection.token, currentPath)
         } catch (e: Exception) {
-            Toast.makeText(context, "Error loading files: ${e.message}", Toast.LENGTH_SHORT).show()
+            if (e !is kotlinx.coroutines.CancellationException) {
+                Toast.makeText(context, "Error loading files: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         } finally {
             isFilesLoading = false
         }
@@ -1595,7 +1597,9 @@ fun DashboardScreen(
                 mediaList = res.items
                 mediaTotalCount = res.total
             } catch (e: Exception) {
-                Toast.makeText(context, "Error loading media: ${e.message}", Toast.LENGTH_SHORT).show()
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    Toast.makeText(context, "Error loading media: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             } finally {
                 isMediaLoading = false
             }
@@ -1627,7 +1631,9 @@ fun DashboardScreen(
             try {
                 shortsList = fetchShortsFeed(connection.serverUrl, connection.token)
             } catch (e: Exception) {
-                Toast.makeText(context, "Error loading Shorts: ${e.message}", Toast.LENGTH_SHORT).show()
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    Toast.makeText(context, "Error loading Shorts: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             } finally {
                 isShortsLoading = false
             }
@@ -1641,7 +1647,9 @@ fun DashboardScreen(
             try {
                 favoritesList = fetchFavoritesList(connection.serverUrl, connection.token)
             } catch (e: Exception) {
-                Toast.makeText(context, "Error loading favorites: ${e.message}", Toast.LENGTH_SHORT).show()
+                if (e !is kotlinx.coroutines.CancellationException) {
+                    Toast.makeText(context, "Error loading favorites: ${e.message}", Toast.LENGTH_SHORT).show()
+                }
             } finally {
                 isFavoritesLoading = false
             }
@@ -2247,95 +2255,114 @@ fun DashboardScreen(
                         )
                     }
                     DashboardTab.Favorites -> {
-                        FavoritesTabContent(
-                            predefinedTags = predefinedTags,
-                            serverUrl = connection.serverUrl,
-                            token = connection.token,
-                            files = favoritesList,
-                            isLoading = isFavoritesLoading,
-                            searchQuery = searchQuery,
-                            isGridView = isGridView,
-                            autoplayPreviews = autoplayPreviews,
-                            sortOption = sortOption,
-                            onFolderClick = { folder ->
-                                val folderFullPath = folder.fullPath ?: folder.name
-                                currentPath = folderFullPath
-                                pathStack.clear()
-                                if (folderFullPath.isNotEmpty()) {
-                                    pathStack.addAll(folderFullPath.split("/"))
-                                }
-                                currentTab = DashboardTab.Files
-                            },
-                            onFileClick = { file -> activeViewerFile = file },
-                            onToggleFavorite = { file, isFav ->
+                        PullToRefreshBox(
+                            isRefreshing = isFavoritesLoading,
+                            onRefresh = {
+                                isFavoritesLoading = true
                                 scope.launch {
-                                    val fullFilePath = file.fullPath ?: file.name
-                                    if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = isFav)) {
-                                        triggerFileRefresh()
-                                        triggerFavoritesRefresh()
+                                    try {
+                                        favoritesList = fetchFavoritesList(connection.serverUrl, connection.token)
+                                    } catch (e: Exception) {
+                                        if (e !is kotlinx.coroutines.CancellationException) {
+                                            Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } finally {
+                                        isFavoritesLoading = false
                                     }
                                 }
                             },
-                            onTogglePublic = { file, isPub ->
-                                scope.launch {
-                                    val fullFilePath = file.fullPath ?: file.name
-                                    if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isPublic = isPub)) {
-                                        triggerFileRefresh()
-                                        triggerFavoritesRefresh()
-                                        if (isPub) {
-                                            val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
-                                            shareText(context, publicUrl, "Share public link")
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            FavoritesTabContent(
+                                predefinedTags = predefinedTags,
+                                serverUrl = connection.serverUrl,
+                                token = connection.token,
+                                files = favoritesList,
+                                isLoading = isFavoritesLoading,
+                                searchQuery = searchQuery,
+                                isGridView = isGridView,
+                                autoplayPreviews = autoplayPreviews,
+                                sortOption = sortOption,
+                                onFolderClick = { folder ->
+                                    val folderFullPath = folder.fullPath ?: folder.name
+                                    currentPath = folderFullPath
+                                    pathStack.clear()
+                                    if (folderFullPath.isNotEmpty()) {
+                                        pathStack.addAll(folderFullPath.split("/"))
+                                    }
+                                    currentTab = DashboardTab.Files
+                                },
+                                onFileClick = { file -> activeViewerFile = file },
+                                onToggleFavorite = { file, isFav ->
+                                    scope.launch {
+                                        val fullFilePath = file.fullPath ?: file.name
+                                        if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = isFav)) {
+                                            triggerFileRefresh()
+                                            triggerFavoritesRefresh()
                                         }
                                     }
-                                }
-                            },
-                            onCopyLink = { file ->
-                                val fullFilePath = file.fullPath ?: file.name
-                                val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                                val clip = android.content.ClipData.newPlainText("ClyoCloud Link", publicUrl)
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "Link copied to clipboard", Toast.LENGTH_SHORT).show()
-                            },
-                            onDownload = { file ->
-                                val fullFilePath = file.fullPath ?: file.name
-                                scope.launch {
-                                    Toast.makeText(context, "Downloading ${file.name}...", Toast.LENGTH_SHORT).show()
-                                    val success = downloadFileToDevice(context, connection.serverUrl, connection.token, fullFilePath, file.name)
-                                    if (success) {
-                                        Toast.makeText(context, "Download complete: ${file.name}", Toast.LENGTH_LONG).show()
-                                    } else {
-                                        Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                                },
+                                onTogglePublic = { file, isPub ->
+                                    scope.launch {
+                                        val fullFilePath = file.fullPath ?: file.name
+                                        if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isPublic = isPub)) {
+                                            triggerFileRefresh()
+                                            triggerFavoritesRefresh()
+                                            if (isPub) {
+                                                val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
+                                                shareText(context, publicUrl, "Share public link")
+                                            }
+                                        }
                                     }
-                                }
-                            },
-                            onDelete = { file ->
-                                val fullFilePath = file.fullPath ?: file.name
-                                scope.launch {
-                                    if (deleteFileOrFolder(connection.serverUrl, connection.token, fullFilePath)) {
-                                        Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
-                                        triggerFileRefresh()
-                                        triggerFavoritesRefresh()
-                                    } else {
-                                        Toast.makeText(context, "Delete failed", Toast.LENGTH_SHORT).show()
+                                },
+                                onCopyLink = { file ->
+                                    val fullFilePath = file.fullPath ?: file.name
+                                    val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
+                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    val clip = android.content.ClipData.newPlainText("ClyoCloud Link", publicUrl)
+                                    clipboard.setPrimaryClip(clip)
+                                    Toast.makeText(context, "Link copied to clipboard", Toast.LENGTH_SHORT).show()
+                                },
+                                onDownload = { file ->
+                                    val fullFilePath = file.fullPath ?: file.name
+                                    scope.launch {
+                                        Toast.makeText(context, "Downloading ${file.name}...", Toast.LENGTH_SHORT).show()
+                                        val success = downloadFileToDevice(context, connection.serverUrl, connection.token, fullFilePath, file.name)
+                                        if (success) {
+                                            Toast.makeText(context, "Download complete: ${file.name}", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                                        }
                                     }
+                                },
+                                onDelete = { file ->
+                                    val fullFilePath = file.fullPath ?: file.name
+                                    scope.launch {
+                                        if (deleteFileOrFolder(connection.serverUrl, connection.token, fullFilePath)) {
+                                            Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
+                                            triggerFileRefresh()
+                                            triggerFavoritesRefresh()
+                                        } else {
+                                            Toast.makeText(context, "Delete failed", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                },
+                                onEditTags = { file ->
+                                    fileForTagEdit = file
+                                    showTagEditDialog = true
+                                },
+                                onRename = { file ->
+                                    renameTargetFile = file
+                                    renameNewName = file.name
+                                    showRenameDialog = true
+                                },
+                                onMove = { file ->
+                                    moveTargetFiles = listOf(file)
+                                    pickerCurrentPath = ""
+                                    showMoveDialog = true
                                 }
-                            },
-                            onEditTags = { file ->
-                                fileForTagEdit = file
-                                showTagEditDialog = true
-                            },
-                            onRename = { file ->
-                                renameTargetFile = file
-                                renameNewName = file.name
-                                showRenameDialog = true
-                            },
-                            onMove = { file ->
-                                moveTargetFiles = listOf(file)
-                                pickerCurrentPath = ""
-                                showMoveDialog = true
-                            }
-                        )
+                            )
+                        }
                     }
                     DashboardTab.Settings -> {
                         SettingsTabContent(
@@ -3440,8 +3467,14 @@ fun DashboardScreen(
 
         // Immersive viewer for files
         if (activeViewerFile != null) {
-            val mediaFiles = filesList.filter { !it.isFolder && (isImageFile(it.name) || isVideoFile(it.name)) }
-            val initialIndex = mediaFiles.indexOfFirst { it.name == activeViewerFile?.name }.coerceAtLeast(0)
+            val mediaFiles = remember(currentTab, filesList, favoritesList) {
+                if (currentTab == DashboardTab.Favorites) {
+                    favoritesList.filter { !it.isFolder && (isImageFile(it.name) || isVideoFile(it.name)) }
+                } else {
+                    filesList.filter { !it.isFolder && (isImageFile(it.name) || isVideoFile(it.name)) }
+                }
+            }
+            val initialIndex = mediaFiles.indexOfFirst { (it.fullPath ?: it.name) == (activeViewerFile?.fullPath ?: activeViewerFile?.name) }.coerceAtLeast(0)
             ImmersiveMediaViewer(
                 serverUrl = connection.serverUrl,
                 token = connection.token,
@@ -3451,15 +3484,16 @@ fun DashboardScreen(
                 onClose = { activeViewerFile = null },
                 onToggleFavorite = { file, isFav ->
                     scope.launch {
-                        val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                        val fullFilePath = file.fullPath ?: (if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}")
                         if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = isFav)) {
                             file.isFavourite = isFav
                             triggerFileRefresh()
+                            triggerFavoritesRefresh()
                         }
                     }
                 },
                 onDownload = { file ->
-                    val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                    val fullFilePath = file.fullPath ?: (if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}")
                     scope.launch {
                         Toast.makeText(context, "Downloading ${file.name}...", Toast.LENGTH_SHORT).show()
                         val success = downloadFileToDevice(context, connection.serverUrl, connection.token, fullFilePath, file.name)
@@ -3471,7 +3505,7 @@ fun DashboardScreen(
                     }
                 },
                 onShare = { file ->
-                    val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                    val fullFilePath = file.fullPath ?: (if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}")
                     val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
                     shareText(context, publicUrl, "Share link")
                 }
@@ -3805,7 +3839,7 @@ fun FilesTabContent(
             }
         }
 
-        if (isLoading) {
+        if (isLoading && files.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
             }
@@ -4368,7 +4402,7 @@ fun FavoritesTabContent(
             }
         }
 
-        if (isLoading) {
+        if (isLoading && files.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
             }
@@ -5107,7 +5141,7 @@ fun ImmersiveMediaViewer(
             modifier = Modifier.fillMaxSize()
         ) { pageIndex ->
             val file = mediaFiles[pageIndex]
-            val path = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+            val path = file.fullPath ?: (if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}")
             val isPageVideo = MimeTypeMap.getFileExtensionFromUrl(file.name).lowercase() in listOf("mp4", "webm", "mov", "mkv")
 
             var scale by remember { mutableStateOf(1f) }
@@ -5657,9 +5691,11 @@ suspend fun fetchFilesList(serverUrl: String, token: String, path: String): List
                     tagsList.add(TagItem(tagObj.getString("name"), tagObj.getString("color")))
                 }
             }
+            val fileName = obj.getString("name")
+            val fullPathVal = if (path.isEmpty()) fileName else "$path/$fileName"
             list.add(
                 CloudFile(
-                    name = obj.getString("name"),
+                    name = fileName,
                     size = obj.getLong("size"),
                     type = obj.getString("type"),
                     lastModified = obj.getLong("lastModified"),
@@ -5669,7 +5705,8 @@ suspend fun fetchFilesList(serverUrl: String, token: String, path: String): List
                     isWallpaper = isWallpaper,
                     description = description,
                     tags = tagsList,
-                    previewImage = previewImage
+                    previewImage = previewImage,
+                    fullPath = fullPathVal
                 )
             )
         }
