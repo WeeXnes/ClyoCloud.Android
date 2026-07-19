@@ -40,6 +40,7 @@ import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -813,6 +814,7 @@ enum class DashboardTab {
     Files,
     Shorts,
     Media,
+    Favorites,
     Settings
 }
 
@@ -1006,32 +1008,34 @@ fun GlassCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val theme = LocalClyoTheme.current
-    // Layered frosted glass:
-    // Layer 1 – blurred frost base (blurs the layer's own painted surface, simulating frosted glass)
-    // Layer 2 – a subtle theme-tinted top glaze
-    // Layer 3 – sharp content on top, untouched by blur
     Box(
         modifier = modifier.clip(shape)
     ) {
-        // Frost layer — blurred semi-opaque white, creates the frosted look
+        // Modern clean semi-transparent dark background gradient
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF151221).copy(alpha = 0.90f),
+                            Color(0xFF0C0916).copy(alpha = 0.96f)
+                        )
+                    )
+                )
+        )
+        // Glaze layer — subtle theme-tinted gradient overlay for vibrancy
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            Color.White.copy(alpha = 0.18f),
-                            Color.White.copy(alpha = 0.08f)
+                            theme.accent1.copy(alpha = 0.06f),
+                            theme.accent2.copy(alpha = 0.02f)
                         )
                     )
                 )
-                .blur(radius = 20.dp)
-        )
-        // Glaze layer — theme-tinted overlay for colour
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(theme.accent1.copy(alpha = 0.04f))
         )
         // Border ring
         Box(
@@ -1042,7 +1046,7 @@ fun GlassCard(
                     brush = Brush.linearGradient(
                         colors = listOf(
                             theme.accent1.copy(alpha = 0.35f),
-                            Color.White.copy(alpha = 0.06f)
+                            Color.White.copy(alpha = 0.08f)
                         )
                     ),
                     shape = shape
@@ -1390,7 +1394,7 @@ fun LoginScreen(onLoginSuccess: (CloudConnection) -> Unit) {
 }
 
 // Main Dashboard Composable
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun DashboardScreen(
     connection: CloudConnection?,
@@ -1427,6 +1431,10 @@ fun DashboardScreen(
     var filesList by remember { mutableStateOf<List<CloudFile>>(emptyList()) }
     var isFilesLoading by remember { mutableStateOf(false) }
     var showCreateFolderDialog by remember { mutableStateOf(false) }
+
+    // Favorites Tab state
+    var favoritesList by remember { mutableStateOf<List<CloudFile>>(emptyList()) }
+    var isFavoritesLoading by remember { mutableStateOf(false) }
 
     // Multi-Selection State
     var isSelectionMode by remember { mutableStateOf(false) }
@@ -1540,7 +1548,7 @@ fun DashboardScreen(
     }
 
     // Navigation Backpress handling
-    BackHandler(enabled = isSelectionMode || pathStack.isNotEmpty() || activeViewerFile != null || activeViewerMedia != null || activeDetailMedia != null || currentTab == DashboardTab.Shorts) {
+    BackHandler(enabled = isSelectionMode || pathStack.isNotEmpty() || activeViewerFile != null || activeViewerMedia != null || activeDetailMedia != null || currentTab == DashboardTab.Shorts || currentTab == DashboardTab.Favorites) {
         if (isSelectionMode) {
             selectedFiles.clear()
             isSelectionMode = false
@@ -1550,7 +1558,7 @@ fun DashboardScreen(
             activeViewerFile = null
         } else if (activeViewerMedia != null) {
             activeViewerMedia = null
-        } else if (currentTab == DashboardTab.Shorts) {
+        } else if (currentTab == DashboardTab.Shorts || currentTab == DashboardTab.Favorites) {
             currentTab = DashboardTab.Files
         } else if (pathStack.isNotEmpty()) {
             pathStack.removeAt(pathStack.size - 1)
@@ -1622,6 +1630,30 @@ fun DashboardScreen(
                 Toast.makeText(context, "Error loading Shorts: ${e.message}", Toast.LENGTH_SHORT).show()
             } finally {
                 isShortsLoading = false
+            }
+        }
+    }
+
+    // Load Favorites when Favorites tab is active
+    LaunchedEffect(currentTab) {
+        if (currentTab == DashboardTab.Favorites) {
+            isFavoritesLoading = true
+            try {
+                favoritesList = fetchFavoritesList(connection.serverUrl, connection.token)
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error loading favorites: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isFavoritesLoading = false
+            }
+        }
+    }
+
+    val triggerFavoritesRefresh = {
+        scope.launch {
+            try {
+                favoritesList = fetchFavoritesList(connection.serverUrl, connection.token)
+            } catch (e: Exception) {
+                Log.e("ClyoCloudAndroid", "Favorites Refresh error", e)
             }
         }
     }
@@ -1885,6 +1917,7 @@ fun DashboardScreen(
                                 DashboardTab.Files -> "Cloud Storage"
                                 DashboardTab.Shorts -> "Shorts Feed"
                                 DashboardTab.Media -> "Media Library"
+                                DashboardTab.Favorites -> "Favorites"
                                 DashboardTab.Settings -> "Connection"
                             },
                             style = MaterialTheme.typography.titleLarge,
@@ -2037,6 +2070,7 @@ fun DashboardScreen(
                             modifier = Modifier.fillMaxSize()
                         ) {
                             FilesTabContent(
+                                predefinedTags = predefinedTags,
                                 serverUrl = connection.serverUrl,
                                 token = connection.token,
                                 currentPath = currentPath,
@@ -2059,13 +2093,14 @@ fun DashboardScreen(
                                 },
                                 onFileClick = { file -> activeViewerFile = file },
                                 onToggleFavorite = { file, isFav ->
-                                    scope.launch {
-                                        val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
-                                        if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = isFav)) {
-                                            triggerFileRefresh()
-                                        }
-                                    }
-                                },
+                                     scope.launch {
+                                         val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
+                                         if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = isFav)) {
+                                             triggerFileRefresh()
+                                             triggerFavoritesRefresh()
+                                         }
+                                     }
+                                 },
                                 onTogglePublic = { file, isPub ->
                                     scope.launch {
                                         val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
@@ -2104,6 +2139,7 @@ fun DashboardScreen(
                                         if (deleteFileOrFolder(connection.serverUrl, connection.token, fullFilePath)) {
                                             Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
                                             triggerFileRefresh()
+                                            triggerFavoritesRefresh()
                                         } else {
                                             Toast.makeText(context, "Delete failed", Toast.LENGTH_SHORT).show()
                                         }
@@ -2210,6 +2246,97 @@ fun DashboardScreen(
                             }
                         )
                     }
+                    DashboardTab.Favorites -> {
+                        FavoritesTabContent(
+                            predefinedTags = predefinedTags,
+                            serverUrl = connection.serverUrl,
+                            token = connection.token,
+                            files = favoritesList,
+                            isLoading = isFavoritesLoading,
+                            searchQuery = searchQuery,
+                            isGridView = isGridView,
+                            autoplayPreviews = autoplayPreviews,
+                            sortOption = sortOption,
+                            onFolderClick = { folder ->
+                                val folderFullPath = folder.fullPath ?: folder.name
+                                currentPath = folderFullPath
+                                pathStack.clear()
+                                if (folderFullPath.isNotEmpty()) {
+                                    pathStack.addAll(folderFullPath.split("/"))
+                                }
+                                currentTab = DashboardTab.Files
+                            },
+                            onFileClick = { file -> activeViewerFile = file },
+                            onToggleFavorite = { file, isFav ->
+                                scope.launch {
+                                    val fullFilePath = file.fullPath ?: file.name
+                                    if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isFavourite = isFav)) {
+                                        triggerFileRefresh()
+                                        triggerFavoritesRefresh()
+                                    }
+                                }
+                            },
+                            onTogglePublic = { file, isPub ->
+                                scope.launch {
+                                    val fullFilePath = file.fullPath ?: file.name
+                                    if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, isPublic = isPub)) {
+                                        triggerFileRefresh()
+                                        triggerFavoritesRefresh()
+                                        if (isPub) {
+                                            val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
+                                            shareText(context, publicUrl, "Share public link")
+                                        }
+                                    }
+                                }
+                            },
+                            onCopyLink = { file ->
+                                val fullFilePath = file.fullPath ?: file.name
+                                val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                val clip = android.content.ClipData.newPlainText("ClyoCloud Link", publicUrl)
+                                clipboard.setPrimaryClip(clip)
+                                Toast.makeText(context, "Link copied to clipboard", Toast.LENGTH_SHORT).show()
+                            },
+                            onDownload = { file ->
+                                val fullFilePath = file.fullPath ?: file.name
+                                scope.launch {
+                                    Toast.makeText(context, "Downloading ${file.name}...", Toast.LENGTH_SHORT).show()
+                                    val success = downloadFileToDevice(context, connection.serverUrl, connection.token, fullFilePath, file.name)
+                                    if (success) {
+                                        Toast.makeText(context, "Download complete: ${file.name}", Toast.LENGTH_LONG).show()
+                                    } else {
+                                        Toast.makeText(context, "Download failed", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            onDelete = { file ->
+                                val fullFilePath = file.fullPath ?: file.name
+                                scope.launch {
+                                    if (deleteFileOrFolder(connection.serverUrl, connection.token, fullFilePath)) {
+                                        Toast.makeText(context, "Deleted successfully", Toast.LENGTH_SHORT).show()
+                                        triggerFileRefresh()
+                                        triggerFavoritesRefresh()
+                                    } else {
+                                        Toast.makeText(context, "Delete failed", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            },
+                            onEditTags = { file ->
+                                fileForTagEdit = file
+                                showTagEditDialog = true
+                            },
+                            onRename = { file ->
+                                renameTargetFile = file
+                                renameNewName = file.name
+                                showRenameDialog = true
+                            },
+                            onMove = { file ->
+                                moveTargetFiles = listOf(file)
+                                pickerCurrentPath = ""
+                                showMoveDialog = true
+                            }
+                        )
+                    }
                     DashboardTab.Settings -> {
                         SettingsTabContent(
                             connection = connection,
@@ -2220,25 +2347,38 @@ fun DashboardScreen(
                 }
             }
 
-            // Bottom Navigation Bar — frosted glass with theme colours
+            // Bottom Navigation Bar — modern clean style with theme accents
             val theme = LocalClyoTheme.current
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
             ) {
-                // Frost layer
+                // Modern clean semi-transparent dark background gradient
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .background(Color.White.copy(alpha = 0.15f))
-                        .blur(radius = 24.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF151221).copy(alpha = 0.90f),
+                                    Color(0xFF0C0916).copy(alpha = 0.96f)
+                                )
+                            )
+                        )
                 )
                 // Theme tint
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .background(theme.accent1.copy(alpha = 0.03f))
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    theme.accent1.copy(alpha = 0.06f),
+                                    theme.accent2.copy(alpha = 0.02f)
+                                )
+                            )
+                        )
                 )
                 // Top edge border
                 Box(
@@ -2287,6 +2427,19 @@ fun DashboardScreen(
                         onClick = { currentTab = DashboardTab.Media },
                         icon = { Icon(PlayIcon, contentDescription = "Media", modifier = Modifier.size(22.dp)) },
                         label = { Text("Media") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = theme.accent1,
+                            selectedTextColor = theme.accent1,
+                            unselectedIconColor = Color(0xFFA0A0C0),
+                            unselectedTextColor = Color(0xFFA0A0C0),
+                            indicatorColor = theme.accent1.copy(alpha = 0.12f)
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == DashboardTab.Favorites,
+                        onClick = { currentTab = DashboardTab.Favorites },
+                        icon = { Icon(if (currentTab == DashboardTab.Favorites) StarIcon else StarBorderIcon, contentDescription = "Favorites", modifier = Modifier.size(22.dp)) },
+                        label = { Text("Favorites") },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = theme.accent1,
                             selectedTextColor = theme.accent1,
@@ -2397,6 +2550,10 @@ fun DashboardScreen(
             
             val fullFilePath = file.fullPath ?: (if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}")
             val publicUrl = "${connection.serverUrl}/p/${connection.username}/${Uri.encode(fullFilePath)}"
+            
+            var activeTab by remember { mutableStateOf("Details") }
+            val dialogTabs = listOf("Details", "Access", "Tags")
+            val theme = LocalClyoTheme.current
 
             Dialog(onDismissRequest = { showTagEditDialog = false }) {
                 GlassCard(modifier = Modifier.padding(16.dp)) {
@@ -2404,240 +2561,349 @@ fun DashboardScreen(
                         modifier = Modifier
                             .padding(16.dp)
                             .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        Text(
-                            text = "File Details & Settings",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp
-                        )
-
-                        // File properties list
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Name: ${file.name}", color = Color.White, fontSize = 12.sp)
-                            Text("Path: /$fullFilePath", color = Color(0xFFA0A0C0), fontSize = 11.sp)
-                            if (!file.isFolder) {
-                                Text("Size: ${formatFileSize(file.size)}", color = Color(0xFFA0A0C0), fontSize = 11.sp)
-                                Text("Type: ${file.type}", color = Color(0xFFA0A0C0), fontSize = 11.sp)
-                            } else {
-                                Text("Type: Folder", color = Color(0xFFA0A0C0), fontSize = 11.sp)
-                            }
-                            val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(file.lastModified))
-                            Text("Modified: $dateStr", color = Color(0xFFA0A0C0), fontSize = 11.sp)
-                        }
-
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-
-                        // Description Editor
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("Description", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            GlassTextField(
-                                value = descriptionState,
-                                onValueChange = { descriptionState = it },
-                                label = "Edit description...",
-                                modifier = Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "File Settings",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp
                             )
                         }
 
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-
-                        // Public Access Section
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Enable Public Access", color = Color.White, fontSize = 13.sp)
-                                androidx.compose.material3.Switch(
-                                    checked = isPublicState,
-                                    onCheckedChange = { isPublicState = it },
-                                    colors = androidx.compose.material3.SwitchDefaults.colors(
-                                        checkedThumbColor = LocalClyoTheme.current.accent2,
-                                        checkedTrackColor = LocalClyoTheme.current.accent2.copy(alpha = 0.4f)
-                                    )
-                                )
-                            }
-                            if (isPublicState) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = "Public link is active",
-                                        color = LocalClyoTheme.current.accent2,
-                                        fontSize = 12.sp,
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                    Button(
-                                        onClick = { shareText(context, publicUrl, "Share link") },
-                                        colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent2),
-                                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                        modifier = Modifier.height(28.dp)
-                                    ) {
-                                        Text("Share", color = Color(0xFF0F0C1B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-
-                        // Wallpaper Toggling & Folder Icon Tools
-                        if (!file.isFolder && isImageFile(file.name)) {
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text("Set as Wallpaper", color = Color.White, fontSize = 13.sp)
-                                androidx.compose.material3.Switch(
-                                    checked = isWallpaperState,
-                                    onCheckedChange = { isWallpaperState = it },
-                                    colors = androidx.compose.material3.SwitchDefaults.colors(
-                                        checkedThumbColor = LocalClyoTheme.current.accent1,
-                                        checkedTrackColor = LocalClyoTheme.current.accent1.copy(alpha = 0.4f)
-                                    )
-                                )
-                            }
-
-                            if (currentPath.isNotEmpty()) {
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            if (updateFileMeta(connection.serverUrl, connection.token, currentPath, previewImage = file.name)) {
-                                                Toast.makeText(context, "Set folder icon successfully", Toast.LENGTH_SHORT).show()
-                                                showTagEditDialog = false
-                                                triggerFileRefresh()
-                                            } else {
-                                                Toast.makeText(context, "Failed to set folder icon", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent2)
-                                ) {
-                                    Text("Set as Folder Icon", color = Color(0xFF0F0C1B), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-
-                        if (file.isFolder) {
-                            if (file.previewImage != null) {
-                                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                                Button(
-                                    onClick = {
-                                        scope.launch {
-                                            if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, clearPreviewImage = true)) {
-                                                Toast.makeText(context, "Reset folder icon successfully", Toast.LENGTH_SHORT).show()
-                                                showTagEditDialog = false
-                                                triggerFileRefresh()
-                                            } else {
-                                                Toast.makeText(context, "Failed to reset folder icon", Toast.LENGTH_SHORT).show()
-                                            }
-                                        }
-                                    },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
-                                ) {
-                                    Text("Reset Folder Icon", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-
-                        HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-
-                        // Tags Section
-                        Text("Tags", color = LocalClyoTheme.current.accent1, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
-                        LazyColumn(modifier = Modifier.height(110.dp)) {
-                            items(predefinedTags) { tag ->
-                                val isChecked = selectedTags.any { it.name == tag.name }
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            if (isChecked) {
-                                                selectedTags.removeAll { it.name == tag.name }
-                                            } else {
-                                                selectedTags.add(tag)
-                                            }
-                                        }
-                                        .padding(vertical = 6.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(14.dp)
-                                            .background(Color(android.graphics.Color.parseColor(tag.color)), CircleShape)
-                                    )
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Text(tag.name, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                                    if (isChecked) {
-                                        Icon(CheckIcon, contentDescription = "Selected", tint = LocalClyoTheme.current.accent2, modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            }
-                        }
-
-                        // Add new tag textbox
+                        // Tab Segmented Selector
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(Color.White.copy(alpha = 0.05f), RoundedCornerShape(12.dp))
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                GlassTextField(
-                                    value = newTagName,
-                                    onValueChange = { newTagName = it },
-                                    label = "Create new tag...",
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            var showColorsMenu by remember { mutableStateOf(false) }
-                            Box {
+                            dialogTabs.forEach { tabName ->
+                                val isTabSelected = activeTab == tabName
                                 Box(
                                     modifier = Modifier
-                                        .size(24.dp)
-                                        .background(Color(android.graphics.Color.parseColor(selectedTagColor)), CircleShape)
-                                        .clickable { showColorsMenu = true }
-                                )
-                                DropdownMenu(
-                                    expanded = showColorsMenu,
-                                    onDismissRequest = { showColorsMenu = false }
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isTabSelected) theme.accent1.copy(alpha = 0.15f) else Color.Transparent)
+                                        .clickable { activeTab = tabName }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    tagColors.forEach { colorStr ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Box(modifier = Modifier.size(20.dp).background(Color(android.graphics.Color.parseColor(colorStr)), CircleShape))
-                                            },
-                                            onClick = { selectedTagColor = colorStr; showColorsMenu = false }
-                                        )
-                                    }
+                                    Text(
+                                        text = tabName,
+                                        color = if (isTabSelected) theme.accent1 else Color(0xFFA0A0C0),
+                                        fontWeight = if (isTabSelected) FontWeight.Bold else FontWeight.Normal,
+                                        fontSize = 13.sp
+                                    )
                                 }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            IconButton(onClick = {
-                                if (newTagName.isNotBlank()) {
-                                    val newTagObj = TagItem(newTagName.trim(), selectedTagColor)
-                                    if (!predefinedTags.any { it.name.lowercase() == newTagObj.name.lowercase() }) {
-                                        scope.launch {
-                                            val updatedPredefined = predefinedTags + newTagObj
-                                            if (savePredefinedTags(connection.serverUrl, connection.token, updatedPredefined)) {
-                                                predefinedTags = fetchPredefinedTags(connection.serverUrl, connection.token)
-                                            }
-                                        }
-                                    }
-                                    if (!selectedTags.any { it.name.lowercase() == newTagObj.name.lowercase() }) {
-                                        selectedTags.add(newTagObj)
-                                    }
-                                    newTagName = ""
-                                }
-                            }) {
-                                Icon(AddIcon, contentDescription = "Add Tag", tint = LocalClyoTheme.current.accent2)
                             }
                         }
 
+                        // Tab Contents
+                        if (activeTab == "Details") {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                // File properties list
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color.White.copy(alpha = 0.03f), RoundedCornerShape(12.dp))
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Text("Name: ${file.name}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                                    Text("Path: /$fullFilePath", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                                    if (!file.isFolder) {
+                                        Text("Size: ${formatFileSize(file.size)}", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                                        Text("Type: ${file.type}", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                                    } else {
+                                        Text("Type: Folder", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                                    }
+                                    val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault()).format(java.util.Date(file.lastModified))
+                                    Text("Modified: $dateStr", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Description Editor
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("Notes / Description", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    GlassTextField(
+                                        value = descriptionState,
+                                        onValueChange = { descriptionState = it },
+                                        label = "Add description notes...",
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        }
+
+                        if (activeTab == "Access") {
+                            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                // Public Access Section
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color.White.copy(alpha = 0.03f), RoundedCornerShape(12.dp))
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text("Public Sharing", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                            Text("Allow anyone to view/download", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                                        }
+                                        androidx.compose.material3.Switch(
+                                            checked = isPublicState,
+                                            onCheckedChange = { isPublicState = it },
+                                            colors = androidx.compose.material3.SwitchDefaults.colors(
+                                                checkedThumbColor = theme.accent2,
+                                                checkedTrackColor = theme.accent2.copy(alpha = 0.4f)
+                                            )
+                                        )
+                                    }
+                                    if (isPublicState) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Text(
+                                                text = "Public link is active",
+                                                color = theme.accent2,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                            Button(
+                                                onClick = { shareText(context, publicUrl, "Share link") },
+                                                colors = ButtonDefaults.buttonColors(containerColor = theme.accent2),
+                                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                                modifier = Modifier.height(32.dp)
+                                            ) {
+                                                Text("Share", color = Color(0xFF0F0C1B), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Wallpaper / Folder Icon Tools
+                                if (!file.isFolder && isImageFile(file.name)) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color.White.copy(alpha = 0.03f), RoundedCornerShape(12.dp))
+                                            .padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column {
+                                                Text("Set as Wallpaper", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                                Text("Show as option for wallpaper", color = Color(0xFFA0A0C0), fontSize = 11.sp)
+                                            }
+                                            androidx.compose.material3.Switch(
+                                                checked = isWallpaperState,
+                                                onCheckedChange = { isWallpaperState = it },
+                                                colors = androidx.compose.material3.SwitchDefaults.colors(
+                                                    checkedThumbColor = theme.accent1,
+                                                    checkedTrackColor = theme.accent1.copy(alpha = 0.4f)
+                                                )
+                                            )
+                                        }
+
+                                        if (currentPath.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Button(
+                                                onClick = {
+                                                    scope.launch {
+                                                        if (updateFileMeta(connection.serverUrl, connection.token, currentPath, previewImage = file.name)) {
+                                                            Toast.makeText(context, "Set folder icon successfully", Toast.LENGTH_SHORT).show()
+                                                            showTagEditDialog = false
+                                                            triggerFileRefresh()
+                                                        } else {
+                                                            Toast.makeText(context, "Failed to set folder icon", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = ButtonDefaults.buttonColors(containerColor = theme.accent2)
+                                            ) {
+                                                Text("Use as Folder Thumbnail", color = Color(0xFF0F0C1B), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                if (file.isFolder && file.previewImage != null) {
+                                    Button(
+                                        onClick = {
+                                            scope.launch {
+                                                if (updateFileMeta(connection.serverUrl, connection.token, fullFilePath, clearPreviewImage = true)) {
+                                                    Toast.makeText(context, "Reset folder icon successfully", Toast.LENGTH_SHORT).show()
+                                                    showTagEditDialog = false
+                                                    triggerFileRefresh()
+                                                } else {
+                                                    Toast.makeText(context, "Failed to reset folder icon", Toast.LENGTH_SHORT).show()
+                                                }
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
+                                    ) {
+                                        Text("Reset Folder Icon", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        if (activeTab == "Tags") {
+                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text("Select Tags", color = theme.accent1, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                                
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(140.dp)
+                                        .background(Color.White.copy(alpha = 0.03f), RoundedCornerShape(12.dp))
+                                        .padding(8.dp)
+                                        .verticalScroll(rememberScrollState())
+                                ) {
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        predefinedTags.forEach { tag ->
+                                            val isChecked = selectedTags.any { it.name == tag.name }
+                                            val tagColor = Color(android.graphics.Color.parseColor(tag.color))
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(16.dp))
+                                                    .background(if (isChecked) tagColor.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f))
+                                                    .border(
+                                                        width = 1.dp,
+                                                        color = if (isChecked) tagColor else Color.White.copy(alpha = 0.15f),
+                                                        shape = RoundedCornerShape(16.dp)
+                                                    )
+                                                    .clickable {
+                                                        if (isChecked) {
+                                                            selectedTags.removeAll { it.name == tag.name }
+                                                        } else {
+                                                            selectedTags.add(tag)
+                                                        }
+                                                    }
+                                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(10.dp)
+                                                            .background(tagColor, CircleShape)
+                                                    )
+                                                    Text(tag.name, color = Color.White, fontSize = 12.sp)
+                                                    if (isChecked) {
+                                                        Icon(
+                                                            imageVector = CheckIcon,
+                                                            contentDescription = "Selected",
+                                                            tint = theme.accent2,
+                                                            modifier = Modifier.size(12.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Add new tag textbox
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("Create New Tag", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            GlassTextField(
+                                                value = newTagName,
+                                                onValueChange = { newTagName = it },
+                                                label = "Tag name...",
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        var showColorsMenu by remember { mutableStateOf(false) }
+                                        Box {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .background(Color(android.graphics.Color.parseColor(selectedTagColor)), CircleShape)
+                                                    .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
+                                                    .clickable { showColorsMenu = true }
+                                            )
+                                            DropdownMenu(
+                                                expanded = showColorsMenu,
+                                                onDismissRequest = { showColorsMenu = false }
+                                            ) {
+                                                tagColors.forEach { colorStr ->
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Box(modifier = Modifier.size(20.dp).background(Color(android.graphics.Color.parseColor(colorStr)), CircleShape))
+                                                        },
+                                                        onClick = { selectedTagColor = colorStr; showColorsMenu = false }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        IconButton(
+                                            onClick = {
+                                                if (newTagName.isNotBlank()) {
+                                                    val newTagObj = TagItem(newTagName.trim(), selectedTagColor)
+                                                    if (!predefinedTags.any { it.name.lowercase() == newTagObj.name.lowercase() }) {
+                                                        scope.launch {
+                                                            val updatedPredefined = predefinedTags + newTagObj
+                                                            if (savePredefinedTags(connection.serverUrl, connection.token, updatedPredefined)) {
+                                                                predefinedTags = fetchPredefinedTags(connection.serverUrl, connection.token)
+                                                            }
+                                                        }
+                                                    }
+                                                    if (!selectedTags.any { it.name.lowercase() == newTagObj.name.lowercase() }) {
+                                                        selectedTags.add(newTagObj)
+                                                    }
+                                                    newTagName = ""
+                                                }
+                                            },
+                                            modifier = Modifier
+                                                .background(theme.accent1.copy(alpha = 0.12f), CircleShape)
+                                                .size(36.dp)
+                                        ) {
+                                            Icon(AddIcon, contentDescription = "Add Tag", tint = theme.accent1)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Save & Cancel Actions
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             horizontalArrangement = Arrangement.End
@@ -2660,13 +2926,14 @@ fun DashboardScreen(
                                             )) {
                                             showTagEditDialog = false
                                             triggerFileRefresh()
+                                            triggerFavoritesRefresh()
                                             triggerMediaRefresh()
                                         } else {
                                             Toast.makeText(context, "Failed to update settings", Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                                colors = ButtonDefaults.buttonColors(containerColor = theme.accent1)
                             ) {
                                 Text("Save", color = Color(0xFF0F0C1B))
                             }
@@ -3377,6 +3644,7 @@ fun DashboardScreen(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FilesTabContent(
+    predefinedTags: List<TagItem>,
     serverUrl: String,
     token: String,
     currentPath: String,
@@ -3407,12 +3675,19 @@ fun FilesTabContent(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val sortedFiles = remember(files, searchQuery, showFavoritesOnly, sortOption) {
+    var selectedTagFilter by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(currentPath) {
+        selectedTagFilter = null
+    }
+
+    val sortedFiles = remember(files, searchQuery, showFavoritesOnly, sortOption, selectedTagFilter) {
         files.filter { file ->
             val matchesSearch = file.name.contains(searchQuery, ignoreCase = true) ||
                                 file.tags.any { it.name.contains(searchQuery, ignoreCase = true) }
             val matchesFav = !showFavoritesOnly || file.isFavourite
-            matchesSearch && matchesFav
+            val matchesTag = selectedTagFilter == null || file.tags.any { it.name.equals(selectedTagFilter, ignoreCase = true) }
+            matchesSearch && matchesFav && matchesTag
         }.sortedWith { a, b ->
             if (a.isFolder != b.isFolder) {
                 if (a.isFolder) -1 else 1
@@ -3457,6 +3732,76 @@ fun FilesTabContent(
                         }
                         .padding(vertical = 4.dp)
                 )
+            }
+        }
+
+        // Horizontal Tag Filters
+        if (predefinedTags.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // "All" chip
+                val isAllSelected = selectedTagFilter == null
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isAllSelected) LocalClyoTheme.current.accent1.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
+                        .border(
+                            width = 1.dp,
+                            color = if (isAllSelected) LocalClyoTheme.current.accent1 else Color.White.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clickable { selectedTagFilter = null }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "All",
+                        color = if (isAllSelected) LocalClyoTheme.current.accent1 else Color.White.copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                predefinedTags.forEach { tag ->
+                    val isSelected = selectedTagFilter == tag.name
+                    val tagColor = Color(android.graphics.Color.parseColor(tag.color))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) tagColor.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f))
+                            .border(
+                                width = 1.dp,
+                                color = if (isSelected) tagColor else Color.White.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable {
+                                selectedTagFilter = if (isSelected) null else tag.name
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(tagColor, CircleShape)
+                            )
+                            Text(
+                                text = tag.name,
+                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -3895,6 +4240,505 @@ fun FilesTabContent(
                                         TextButton(onClick = { onDelete(file); isMenuExpanded = false }) {
                                             Text("Delete", color = Color(0xFFFF5252), fontSize = 12.sp)
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Favorites Tab content Composable
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun FavoritesTabContent(
+    predefinedTags: List<TagItem>,
+    serverUrl: String,
+    token: String,
+    files: List<CloudFile>,
+    isLoading: Boolean,
+    searchQuery: String,
+    isGridView: Boolean,
+    autoplayPreviews: Boolean,
+    sortOption: String,
+    onFolderClick: (CloudFile) -> Unit,
+    onFileClick: (CloudFile) -> Unit,
+    onToggleFavorite: (CloudFile, Boolean) -> Unit,
+    onTogglePublic: (CloudFile, Boolean) -> Unit,
+    onCopyLink: (CloudFile) -> Unit,
+    onDownload: (CloudFile) -> Unit,
+    onDelete: (CloudFile) -> Unit,
+    onEditTags: (CloudFile) -> Unit,
+    onRename: (CloudFile) -> Unit,
+    onMove: (CloudFile) -> Unit
+) {
+    val context = LocalContext.current
+    var selectedTagFilter by remember { mutableStateOf<String?>(null) }
+
+    val sortedFiles = remember(files, searchQuery, sortOption, selectedTagFilter) {
+        files.filter { file ->
+            val matchesSearch = file.name.contains(searchQuery, ignoreCase = true) ||
+                                file.tags.any { it.name.contains(searchQuery, ignoreCase = true) }
+            val matchesTag = selectedTagFilter == null || file.tags.any { it.name.equals(selectedTagFilter, ignoreCase = true) }
+            matchesSearch && matchesTag
+        }.sortedWith { a, b ->
+            if (a.isFolder != b.isFolder) {
+                if (a.isFolder) -1 else 1
+            } else {
+                when (sortOption) {
+                    "size" -> b.size.compareTo(a.size)
+                    "date" -> b.lastModified.compareTo(a.lastModified)
+                    else -> a.name.compareTo(b.name, ignoreCase = true)
+                }
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Horizontal Tag Filters
+        if (predefinedTags.isNotEmpty()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // "All" chip
+                val isAllSelected = selectedTagFilter == null
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (isAllSelected) LocalClyoTheme.current.accent1.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
+                        .border(
+                            width = 1.dp,
+                            color = if (isAllSelected) LocalClyoTheme.current.accent1 else Color.White.copy(alpha = 0.12f),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        .clickable { selectedTagFilter = null }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "All",
+                        color = if (isAllSelected) LocalClyoTheme.current.accent1 else Color.White.copy(alpha = 0.7f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                predefinedTags.forEach { tag ->
+                    val isSelected = selectedTagFilter == tag.name
+                    val tagColor = Color(android.graphics.Color.parseColor(tag.color))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isSelected) tagColor.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.05f))
+                            .border(
+                                width = 1.dp,
+                                color = if (isSelected) tagColor else Color.White.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            .clickable {
+                                selectedTagFilter = if (isSelected) null else tag.name
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(tagColor, CircleShape)
+                            )
+                            Text(
+                                text = tag.name,
+                                color = if (isSelected) Color.White else Color.White.copy(alpha = 0.7f),
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
+            }
+        } else if (sortedFiles.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No favorites found", color = Color(0xFFA0A0C0))
+            }
+        } else {
+            if (isGridView) {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 110.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(items = sortedFiles, key = { it.fullPath ?: it.name }) { file ->
+                        var isMenuExpanded by remember { mutableStateOf(false) }
+                        val fileRelativePath = file.fullPath ?: file.name
+
+                        GlassCard(
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (file.isFolder) {
+                                        onFolderClick(file)
+                                    } else {
+                                        onFileClick(file)
+                                    }
+                                }
+                        ) {
+                            Column {
+                                // Thumbnail / Preview Area
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .aspectRatio(1f)
+                                        .background(Color.Black.copy(alpha = 0.2f))
+                                ) {
+                                    if (file.isFolder) {
+                                        if (file.previewImage != null) {
+                                            AsyncServerImage(
+                                                serverUrl = serverUrl,
+                                                token = token,
+                                                relativePath = "$fileRelativePath/${file.previewImage}",
+                                                isThumbnail = true,
+                                                contentDescription = file.name,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = FolderIcon,
+                                                contentDescription = null,
+                                                tint = LocalClyoTheme.current.accent1,
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .align(Alignment.Center)
+                                            )
+                                        }
+                                    } else {
+                                        if (hasThumbnail(file.name)) {
+                                            if (isVideoFile(file.name) && autoplayPreviews) {
+                                                RemoteGifPlayer(
+                                                    serverUrl = serverUrl,
+                                                    token = token,
+                                                    relativePath = fileRelativePath,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            } else {
+                                                AsyncServerImage(
+                                                    serverUrl = serverUrl,
+                                                    token = token,
+                                                    relativePath = fileRelativePath,
+                                                    isThumbnail = true,
+                                                    contentDescription = file.name,
+                                                    modifier = Modifier.fillMaxSize()
+                                                )
+                                            }
+                                        } else {
+                                            Icon(
+                                                imageVector = if (isVideoFile(file.name)) PlayIcon else FileIcon,
+                                                contentDescription = null,
+                                                tint = LocalClyoTheme.current.accent2,
+                                                modifier = Modifier
+                                                    .size(36.dp)
+                                                    .align(Alignment.Center)
+                                            )
+                                        }
+                                    }
+
+                                    // Star/Favorite top-right overlay
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .padding(6.dp)
+                                            .size(24.dp)
+                                            .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                                            .clickable { onToggleFavorite(file, !file.isFavourite) },
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = if (file.isFavourite) StarIcon else StarBorderIcon,
+                                            contentDescription = "Favorite",
+                                            tint = if (file.isFavourite) Color(0xFFFFD700) else Color(0xFFA0A0C0),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+
+                                    // Quick Copy Link overlay if shared
+                                    if (file.isPublic) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.BottomStart)
+                                                .padding(6.dp)
+                                                .size(24.dp)
+                                                .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                                                .clickable { onCopyLink(file) },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = ShareIcon,
+                                                contentDescription = "Copy Link",
+                                                tint = LocalClyoTheme.current.accent2,
+                                                modifier = Modifier.size(12.dp)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                // Metadata Area
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = file.name,
+                                            color = Color.White,
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = if (file.isFolder) "Folder" else formatFileSize(file.size),
+                                            color = Color(0xFFA0A0C0),
+                                            fontSize = 9.sp
+                                        )
+                                    }
+
+                                    Box {
+                                        IconButton(
+                                            onClick = { isMenuExpanded = true },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = MoreVertIcon,
+                                                contentDescription = "More Actions",
+                                                tint = Color.White.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                        }
+                                        DropdownMenu(
+                                            expanded = isMenuExpanded,
+                                            onDismissRequest = { isMenuExpanded = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Details & Tags") },
+                                                onClick = { isMenuExpanded = false; onEditTags(file) }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(if (file.isPublic) "Disable Link" else "Share Link") },
+                                                onClick = { isMenuExpanded = false; onTogglePublic(file, !file.isPublic) }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Download") },
+                                                onClick = { isMenuExpanded = false; onDownload(file) }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Rename") },
+                                                onClick = { isMenuExpanded = false; onRename(file) }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Move") },
+                                                onClick = { isMenuExpanded = false; onMove(file) }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Remove Favorite", color = Color(0xFFFF5252)) },
+                                                onClick = { isMenuExpanded = false; onToggleFavorite(file, false) }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Delete", color = Color(0xFFFF5252)) },
+                                                onClick = { isMenuExpanded = false; onDelete(file) }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } else {
+                // List View
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(items = sortedFiles, key = { it.fullPath ?: it.name }) { file ->
+                        var isMenuExpanded by remember { mutableStateOf(false) }
+                        val fileRelativePath = file.fullPath ?: file.name
+
+                        GlassCard(
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    if (file.isFolder) {
+                                        onFolderClick(file)
+                                    } else {
+                                        onFileClick(file)
+                                    }
+                                }
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Mini Preview
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color.Black.copy(alpha = 0.2f))
+                                ) {
+                                    if (file.isFolder) {
+                                        if (file.previewImage != null) {
+                                            AsyncServerImage(
+                                                serverUrl = serverUrl,
+                                                token = token,
+                                                relativePath = "$fileRelativePath/${file.previewImage}",
+                                                isThumbnail = true,
+                                                contentDescription = file.name,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = FolderIcon,
+                                                contentDescription = null,
+                                                tint = LocalClyoTheme.current.accent1,
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .align(Alignment.Center)
+                                            )
+                                        }
+                                    } else {
+                                        if (hasThumbnail(file.name)) {
+                                            AsyncServerImage(
+                                                serverUrl = serverUrl,
+                                                token = token,
+                                                relativePath = fileRelativePath,
+                                                isThumbnail = true,
+                                                contentDescription = file.name,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
+                                            Icon(
+                                                imageVector = if (isVideoFile(file.name)) PlayIcon else FileIcon,
+                                                contentDescription = null,
+                                                tint = LocalClyoTheme.current.accent2,
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .align(Alignment.Center)
+                                            )
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                // Meta Info
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = file.name,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (file.isFolder) "Folder" else formatFileSize(file.size),
+                                            color = Color(0xFFA0A0C0),
+                                            fontSize = 9.sp
+                                        )
+                                        val dateStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date(file.lastModified))
+                                        Text(
+                                            text = dateStr,
+                                            color = Color(0xFFA0A0C0),
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
+
+                                // Quick Favorite Toggle
+                                IconButton(
+                                    onClick = { onToggleFavorite(file, !file.isFavourite) },
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (file.isFavourite) StarIcon else StarBorderIcon,
+                                        contentDescription = "Favorite",
+                                        tint = if (file.isFavourite) Color(0xFFFFD700) else Color(0xFFA0A0C0),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+
+                                Box {
+                                    IconButton(
+                                        onClick = { isMenuExpanded = true },
+                                        modifier = Modifier.size(28.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = MoreVertIcon,
+                                            contentDescription = "More",
+                                            tint = Color.White.copy(alpha = 0.7f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    DropdownMenu(
+                                        expanded = isMenuExpanded,
+                                        onDismissRequest = { isMenuExpanded = false }
+                                    ) {
+                                        DropdownMenuItem(
+                                            text = { Text("Details & Tags") },
+                                            onClick = { isMenuExpanded = false; onEditTags(file) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text(if (file.isPublic) "Disable Link" else "Share Link") },
+                                            onClick = { isMenuExpanded = false; onTogglePublic(file, !file.isPublic) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Download") },
+                                            onClick = { isMenuExpanded = false; onDownload(file) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Rename") },
+                                            onClick = { isMenuExpanded = false; onRename(file) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Move") },
+                                            onClick = { isMenuExpanded = false; onMove(file) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Remove Favorite", color = Color(0xFFFF5252)) },
+                                            onClick = { isMenuExpanded = false; onToggleFavorite(file, false) }
+                                        )
+                                        DropdownMenuItem(
+                                            text = { Text("Delete", color = Color(0xFFFF5252)) },
+                                            onClick = { isMenuExpanded = false; onDelete(file) }
+                                        )
                                     }
                                 }
                             }
@@ -4702,6 +5546,72 @@ suspend fun verify2fa(serverUrl: String, tempToken: String, code: String): Strin
     } catch (e: Exception) {
         e.printStackTrace()
         null
+    } finally {
+        conn.disconnect()
+    }
+}
+
+// Fetch Favorites list
+suspend fun fetchFavoritesList(serverUrl: String, token: String): List<CloudFile> = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/favorites")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "GET"
+    conn.connectTimeout = 10000
+    conn.readTimeout = 10000
+    conn.setRequestProperty("Authorization", "Bearer $token")
+
+    try {
+        if (conn.responseCode != 200) {
+            throw Exception("Server returned HTTP code ${conn.responseCode}")
+        }
+        val reader = BufferedReader(InputStreamReader(conn.inputStream))
+        val response = StringBuilder()
+        var line: String?
+        while (reader.readLine().also { line = it } != null) {
+            response.append(line)
+        }
+        reader.close()
+
+        val arr = JSONArray(response.toString())
+        val list = mutableListOf<CloudFile>()
+        for (i in 0 until arr.length()) {
+            val obj = arr.getJSONObject(i)
+            val metaObj = obj.optJSONObject("meta")
+            val isPublic = metaObj?.optBoolean("isPublic", false) ?: false
+            val isFavourite = metaObj?.optBoolean("isFavourite", false) ?: true
+            val isWallpaper = metaObj?.optBoolean("isWallpaper", false) ?: false
+            val description = if (metaObj?.has("description") == true) metaObj.getString("description") else null
+            val previewImage = if (metaObj?.has("previewImage") == true) metaObj.getString("previewImage") else null
+            val tagsList = mutableListOf<TagItem>()
+            val tagsArr = metaObj?.optJSONArray("tags")
+            if (tagsArr != null) {
+                for (j in 0 until tagsArr.length()) {
+                    val tagObj = tagsArr.getJSONObject(j)
+                    tagsList.add(TagItem(tagObj.getString("name"), tagObj.getString("color")))
+                }
+            }
+            
+            val path = obj.getString("name") // full relative path, e.g. "Folder/Sub/Image.png"
+            val displayName = path.substringAfterLast('/')
+
+            list.add(
+                CloudFile(
+                    name = displayName,
+                    size = obj.getLong("size"),
+                    type = obj.getString("type"),
+                    lastModified = obj.getLong("lastModified"),
+                    isFolder = obj.getBoolean("isFolder"),
+                    isPublic = isPublic,
+                    isFavourite = isFavourite,
+                    isWallpaper = isWallpaper,
+                    description = description,
+                    tags = tagsList,
+                    previewImage = previewImage,
+                    fullPath = path
+                )
+            )
+        }
+        list
     } finally {
         conn.disconnect()
     }
