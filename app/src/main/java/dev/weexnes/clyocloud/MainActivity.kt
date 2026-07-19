@@ -945,6 +945,7 @@ val LocalClyoTheme = staticCompositionLocalOf { ClyoThemes.Obsidian }
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        System.setProperty("http.agent", "ClyoCloudApp")
         enableEdgeToEdge()
         setContent {
             ClyoCloudTheme {
@@ -4460,6 +4461,7 @@ fun VideoPlayer(
 
     LaunchedEffect(videoUrl, token) {
         val dataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+            .setUserAgent("ClyoCloudApp")
             .setDefaultRequestProperties(mapOf("Authorization" to "Bearer $token"))
         val mediaSource = androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
             .createMediaSource(androidx.media3.common.MediaItem.fromUri(videoUrl))
@@ -5530,6 +5532,7 @@ fun ShortsVideoPlayer(
 
     LaunchedEffect(videoUrl, token) {
         val dataSourceFactory = androidx.media3.datasource.DefaultHttpDataSource.Factory()
+            .setUserAgent("ClyoCloudApp")
             .setDefaultRequestProperties(mapOf("Authorization" to "Bearer $token"))
         val mediaSource = androidx.media3.exoplayer.source.ProgressiveMediaSource.Factory(dataSourceFactory)
             .createMediaSource(androidx.media3.common.MediaItem.fromUri(videoUrl))
