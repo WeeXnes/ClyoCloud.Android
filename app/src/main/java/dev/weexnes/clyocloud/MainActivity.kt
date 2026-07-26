@@ -58,6 +58,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -100,6 +101,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -1639,6 +1641,60 @@ fun DashboardScreen(
     var isSelectionMode by remember { mutableStateOf(false) }
     val selectedFiles = remember { mutableStateListOf<String>() }
 
+    // Bulk Operation Progress State
+    val bgOperations by BackgroundOperationService.activeOperations.collectAsState()
+    val operations = remember { mutableStateListOf<ProgressOperation>() }
+    val allOperations = remember(operations.toList(), bgOperations) {
+        (operations + bgOperations).distinctBy { it.id }
+    }
+
+    fun startOperation(id: String, title: String, total: Int) {
+        operations.removeAll { it.id == id }
+        operations.add(ProgressOperation(id, title, 0, total, OperationStatus.PROCESSING))
+        BackgroundOperationService.updateProgress(id, title, 0, total, OperationStatus.PROCESSING)
+    }
+
+    fun updateOperation(id: String, current: Int) {
+        val index = operations.indexOfFirst { it.id == id }
+        if (index != -1) {
+            val title = operations[index].title
+            val total = operations[index].total
+            operations[index] = operations[index].copy(current = current)
+            BackgroundOperationService.updateProgress(id, title, current, total, OperationStatus.PROCESSING)
+        }
+    }
+
+    fun completeOperation(id: String) {
+        val index = operations.indexOfFirst { it.id == id }
+        if (index != -1) {
+            val title = operations[index].title
+            val total = operations[index].total
+            operations[index] = operations[index].copy(current = total, status = OperationStatus.COMPLETED)
+            BackgroundOperationService.updateProgress(id, title, total, total, OperationStatus.COMPLETED)
+            BackgroundOperationService.removeOperationDelayed(id)
+            scope.launch {
+                kotlinx.coroutines.delay(4000)
+                operations.removeAll { it.id == id }
+            }
+        }
+    }
+
+    fun failOperation(id: String) {
+        val index = operations.indexOfFirst { it.id == id }
+        if (index != -1) {
+            val title = operations[index].title
+            val total = operations[index].total
+            val current = operations[index].current
+            operations[index] = operations[index].copy(status = OperationStatus.ERROR)
+            BackgroundOperationService.updateProgress(id, title, current, total, OperationStatus.ERROR)
+            BackgroundOperationService.removeOperationDelayed(id)
+            scope.launch {
+                kotlinx.coroutines.delay(4000)
+                operations.removeAll { it.id == id }
+            }
+        }
+    }
+
     // Dialog state variables
     var showRenameDialog by remember { mutableStateOf(false) }
     var renameTargetFile by remember { mutableStateOf<CloudFile?>(null) }
@@ -1685,60 +1741,29 @@ fun DashboardScreen(
     var activeViewerMediaList by remember { mutableStateOf<List<CloudFile>>(emptyList()) }
     var activeViewerMedia by remember { mutableStateOf<MediaItem?>(null) }
 
-    var uploadProgressText by remember { mutableStateOf<String?>(null) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { _ -> }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
 
     val selectFilesLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
-            scope.launch {
-                var successCount = 0
-                val total = uris.size
-                
-                for ((index, uri) in uris.withIndex()) {
-                    val resolver = context.contentResolver
-                    var displayName = "file_${index + 1}"
-                    resolver.query(uri, null, null, null, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                            if (nameIndex != -1) {
-                                displayName = cursor.getString(nameIndex)
-                            }
-                        }
-                    }
-
-                    uploadProgressText = "Uploading $displayName (${index + 1}/$total) - 0%"
-                    
-                    val success = uploadFileToServer(
-                        context = context,
-                        serverUrl = connection.serverUrl,
-                        token = connection.token,
-                        targetPath = currentPath,
-                        fileUri = uri,
-                        fileName = displayName,
-                        fileIndex = index + 1,
-                        totalFiles = total,
-                        onProgress = { name, fileIdx, totalF, percent ->
-                            uploadProgressText = "Uploading $name ($fileIdx/$totalF) - $percent%"
-                        }
-                    )
-                    if (success) {
-                        successCount++
-                    }
-                }
-                
-                uploadProgressText = null
-                Toast.makeText(context, "Uploaded $successCount/$total files", Toast.LENGTH_SHORT).show()
-                
-                isFilesLoading = true
-                try {
-                    filesList = fetchFilesList(connection.serverUrl, connection.token, currentPath)
-                } catch (e: Exception) {
-                    Log.e("ClyoCloudAndroid", "Upload refresh error", e)
-                } finally {
-                    isFilesLoading = false
-                }
-            }
+            BackgroundOperationService.startUpload(
+                context = context,
+                serverUrl = connection.serverUrl,
+                token = connection.token,
+                targetPath = currentPath,
+                uris = ArrayList(uris)
+            )
         }
     }
 
@@ -1959,9 +1984,15 @@ fun DashboardScreen(
                                     text = { Text("Favorite", color = Color.White, fontSize = 13.sp) },
                                     onClick = {
                                         showBulkActionsMenu = false
+                                        val selectedToFav = selectedFiles.toList()
+                                        val totalCount = selectedToFav.size
+                                        selectedFiles.clear()
+                                        isSelectionMode = false
+
                                         scope.launch {
+                                            startOperation("bulk-favourite", "Adding to Favorites", totalCount)
                                             var count = 0
-                                            selectedFiles.forEach { name ->
+                                            selectedToFav.forEachIndexed { index, name ->
                                                 val file = filesList.find { it.name == name }
                                                 if (file != null && !file.isFavourite) {
                                                     val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
@@ -1969,11 +2000,12 @@ fun DashboardScreen(
                                                         count++
                                                     }
                                                 }
+                                                updateOperation("bulk-favourite", index + 1)
                                             }
+                                            completeOperation("bulk-favourite")
                                             Toast.makeText(context, "Added $count items to favorites", Toast.LENGTH_SHORT).show()
                                             triggerFileRefresh()
-                                            selectedFiles.clear()
-                                            isSelectionMode = false
+                                            triggerFavoritesRefresh()
                                         }
                                     }
                                 )
@@ -1981,9 +2013,15 @@ fun DashboardScreen(
                                     text = { Text("Unfavorite", color = Color.White, fontSize = 13.sp) },
                                     onClick = {
                                         showBulkActionsMenu = false
+                                        val selectedToUnfav = selectedFiles.toList()
+                                        val totalCount = selectedToUnfav.size
+                                        selectedFiles.clear()
+                                        isSelectionMode = false
+
                                         scope.launch {
+                                            startOperation("bulk-favourite", "Removing Favorites", totalCount)
                                             var count = 0
-                                            selectedFiles.forEach { name ->
+                                            selectedToUnfav.forEachIndexed { index, name ->
                                                 val file = filesList.find { it.name == name }
                                                 if (file != null && file.isFavourite) {
                                                     val fullFilePath = if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}"
@@ -1991,11 +2029,12 @@ fun DashboardScreen(
                                                         count++
                                                     }
                                                 }
+                                                updateOperation("bulk-favourite", index + 1)
                                             }
+                                            completeOperation("bulk-favourite")
                                             Toast.makeText(context, "Removed $count items from favorites", Toast.LENGTH_SHORT).show()
                                             triggerFileRefresh()
-                                            selectedFiles.clear()
-                                            isSelectionMode = false
+                                            triggerFavoritesRefresh()
                                         }
                                     }
                                 )
@@ -2747,6 +2786,15 @@ fun DashboardScreen(
             }
         }
 
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = 80.dp, end = 12.dp),
+            contentAlignment = Alignment.BottomEnd
+        ) {
+            OperationsProgressOverlay(operations = allOperations)
+        }
+
         // Folder Creation Dialog
         if (showCreateFolderDialog) {
             var newFolderName by remember { mutableStateOf("") }
@@ -2795,27 +2843,7 @@ fun DashboardScreen(
             }
         }
 
-        // Upload Progress Dialog
-        if (uploadProgressText != null) {
-            Dialog(onDismissRequest = {}) {
-                GlassCard(modifier = Modifier.padding(16.dp)) {
-                    Column(
-                        modifier = Modifier.padding(24.dp).fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text("Uploading Files", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                        Text(
-                            text = uploadProgressText ?: "",
-                            color = Color(0xFFA0A0C0),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        CircularProgressIndicator(color = LocalClyoTheme.current.accent1)
-                    }
-                }
-            }
-        }
+
 
         // Tag & Share Settings / File Details Dialog
         if (showTagEditDialog && fileForTagEdit != null) {
@@ -3312,44 +3340,55 @@ fun DashboardScreen(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(
-                                onClick = {
-                                    if (bulkRenameBaseName.isNotBlank()) {
-                                        scope.launch {
-                                            var success = true
-                                            val sortedSelected = selectedFiles.sorted()
-                                            sortedSelected.forEachIndexed { index, oldName ->
-                                                val file = filesList.find { it.name == oldName }
-                                                if (file != null) {
-                                                    val oldPath = if (currentPath.isEmpty()) oldName else "$currentPath/$oldName"
-                                                    val originalExt = if (oldName.contains('.')) ".${oldName.split('.').last()}" else ""
-                                                    val newExt = if (bulkRenameExtension.isNotBlank()) {
-                                                        if (bulkRenameExtension.startsWith('.')) bulkRenameExtension else ".$bulkRenameExtension"
-                                                    } else {
-                                                        originalExt
-                                                    }
-                                                    val countNum = bulkRenameStartNumber + index
-                                                    val newName = "${bulkRenameBaseName.trim()}_$countNum$newExt"
-                                                    if (!renameFileOrFolder(connection.serverUrl, connection.token, oldPath, newName)) {
-                                                        success = false
-                                                    }
-                                                }
-                                            }
-                                            if (success) {
-                                                Toast.makeText(context, "Bulk rename complete", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                Toast.makeText(context, "Bulk rename finished with some failures", Toast.LENGTH_SHORT).show()
-                                            }
-                                            showBulkRenameDialog = false
-                                            selectedFiles.clear()
-                                            isSelectionMode = false
-                                            triggerFileRefresh()
-                                        }
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
-                            ) {
-                                Text("Rename All", color = Color(0xFF0F0C1B))
-                            }
+                                 onClick = {
+                                     if (bulkRenameBaseName.isNotBlank()) {
+                                         val selectedToRename = selectedFiles.sorted()
+                                         val totalCount = selectedToRename.size
+                                         val baseName = bulkRenameBaseName.trim()
+                                         val extInput = bulkRenameExtension.trim()
+                                         val startNum = bulkRenameStartNumber
+
+                                         showBulkRenameDialog = false
+                                         selectedFiles.clear()
+                                         isSelectionMode = false
+
+                                         scope.launch {
+                                             startOperation("bulk-rename", "Bulk Renaming", totalCount)
+                                             var hasError = false
+                                             selectedToRename.forEachIndexed { index, oldName ->
+                                                 val file = filesList.find { it.name == oldName }
+                                                 if (file != null) {
+                                                     val oldPath = if (currentPath.isEmpty()) oldName else "$currentPath/$oldName"
+                                                     val originalExt = if (oldName.contains('.')) ".${oldName.split('.').last()}" else ""
+                                                     val newExt = if (extInput.isNotBlank()) {
+                                                         if (extInput.startsWith('.')) extInput else ".$extInput"
+                                                     } else {
+                                                         originalExt
+                                                     }
+                                                     val countNum = startNum + index
+                                                     val newName = "${baseName}_$countNum$newExt"
+                                                     if (!renameFileOrFolder(connection.serverUrl, connection.token, oldPath, newName)) {
+                                                         hasError = true
+                                                     }
+                                                 }
+                                                 updateOperation("bulk-rename", index + 1)
+                                             }
+
+                                             if (hasError) {
+                                                 failOperation("bulk-rename")
+                                                 Toast.makeText(context, "Bulk rename finished with some failures", Toast.LENGTH_SHORT).show()
+                                             } else {
+                                                 completeOperation("bulk-rename")
+                                                 Toast.makeText(context, "Bulk rename complete", Toast.LENGTH_SHORT).show()
+                                             }
+                                             triggerFileRefresh()
+                                         }
+                                     }
+                                 },
+                                 colors = ButtonDefaults.buttonColors(containerColor = LocalClyoTheme.current.accent1)
+                             ) {
+                                 Text("Rename All", color = Color(0xFF0F0C1B))
+                             }
                         }
                     }
                 }
@@ -3543,26 +3582,38 @@ fun DashboardScreen(
                             }
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(
-                                onClick = {
-                                    scope.launch {
-                                        var count = 0
-                                        selectedFiles.forEach { name ->
-                                            val oldPath = if (currentPath.isEmpty()) name else "$currentPath/$name"
-                                            if (deleteFileOrFolder(connection.serverUrl, connection.token, oldPath)) {
-                                                count++
-                                            }
-                                        }
-                                        Toast.makeText(context, "Deleted $count items", Toast.LENGTH_SHORT).show()
-                                        showDeleteConfirmDialog = false
-                                        selectedFiles.clear()
-                                        isSelectionMode = false
-                                        triggerFileRefresh()
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
-                            ) {
-                                Text("Delete", color = Color.White)
-                            }
+                                 onClick = {
+                                     val selectedToDelete = selectedFiles.toList()
+                                     val totalCount = selectedToDelete.size
+
+                                     showDeleteConfirmDialog = false
+                                     selectedFiles.clear()
+                                     isSelectionMode = false
+
+                                     scope.launch {
+                                         startOperation("bulk-delete", "Deleting Files", totalCount)
+                                         var count = 0
+                                         selectedToDelete.forEachIndexed { index, name ->
+                                             val oldPath = if (currentPath.isEmpty()) name else "$currentPath/$name"
+                                             if (deleteFileOrFolder(connection.serverUrl, connection.token, oldPath)) {
+                                                 count++
+                                             }
+                                             updateOperation("bulk-delete", index + 1)
+                                         }
+                                         if (count == totalCount) {
+                                             completeOperation("bulk-delete")
+                                             Toast.makeText(context, "Deleted $count items", Toast.LENGTH_SHORT).show()
+                                         } else {
+                                             failOperation("bulk-delete")
+                                             Toast.makeText(context, "Deleted $count of $totalCount items", Toast.LENGTH_SHORT).show()
+                                         }
+                                         triggerFileRefresh()
+                                     }
+                                 },
+                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
+                             ) {
+                                 Text("Delete", color = Color.White)
+                             }
                         }
                     }
                 }
@@ -3684,13 +3735,22 @@ fun DashboardScreen(
                             Button(
                                 onClick = {
                                     if (bulkSelectedTags.isNotEmpty()) {
+                                        val selectedToTag = selectedFiles.toList()
+                                        val totalCount = selectedToTag.size
+                                        val tagsToAdd = bulkSelectedTags.toList()
+
+                                        showBulkTagDialog = false
+                                        selectedFiles.clear()
+                                        isSelectionMode = false
+
                                         scope.launch {
+                                            startOperation("bulk-tags", "Applying Tags", totalCount)
                                             var count = 0
-                                            selectedFiles.forEach { name ->
+                                            selectedToTag.forEachIndexed { index, name ->
                                                 val file = filesList.find { it.name == name }
                                                 if (file != null) {
                                                     val currentTags = file.tags
-                                                    val tagsToActuallyAdd = bulkSelectedTags.filter { newTag ->
+                                                    val tagsToActuallyAdd = tagsToAdd.filter { newTag ->
                                                         !currentTags.any { it.name.lowercase() == newTag.name.lowercase() }
                                                     }
                                                     val updatedTags = currentTags + tagsToActuallyAdd
@@ -3699,11 +3759,10 @@ fun DashboardScreen(
                                                         count++
                                                     }
                                                 }
+                                                updateOperation("bulk-tags", index + 1)
                                             }
+                                            completeOperation("bulk-tags")
                                             Toast.makeText(context, "Added tags to $count items", Toast.LENGTH_SHORT).show()
-                                            showBulkTagDialog = false
-                                            selectedFiles.clear()
-                                            isSelectionMode = false
                                             triggerFileRefresh()
                                         }
                                     } else {
@@ -5697,6 +5756,136 @@ fun AsyncServerImage(
                 contentDescription = "Error",
                 tint = Color(0xFFFF5252).copy(alpha = 0.5f)
             )
+        }
+    }
+}
+
+enum class OperationStatus {
+    PROCESSING, COMPLETED, ERROR
+}
+
+data class ProgressOperation(
+    val id: String,
+    val title: String,
+    val current: Int,
+    val total: Int,
+    val status: OperationStatus
+)
+
+@Composable
+fun OperationsProgressOverlay(
+    operations: List<ProgressOperation>,
+    modifier: Modifier = Modifier
+) {
+    if (operations.isEmpty()) return
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.End
+    ) {
+        operations.forEach { op ->
+            GlassCard(
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier
+                    .widthIn(max = 340.dp)
+                    .fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp)
+                ) {
+                    val progressPercent = if (op.total > 0) ((op.current.toFloat() / op.total) * 100).toInt().coerceIn(0, 100) else 0
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            when (op.status) {
+                                OperationStatus.PROCESSING -> {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(14.dp),
+                                        strokeWidth = 2.dp,
+                                        color = LocalClyoTheme.current.accent1
+                                    )
+                                }
+                                OperationStatus.COMPLETED -> {
+                                    Text("✓", color = Color(0xFF4CAF50), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                }
+                                OperationStatus.ERROR -> {
+                                    Text("!", color = Color(0xFFFF5252), fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Text(
+                                text = op.title.uppercase(),
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                        Text(
+                            text = "$progressPercent%",
+                            color = Color(0xFFA0A0C0),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val barColor = when (op.status) {
+                        OperationStatus.PROCESSING -> LocalClyoTheme.current.accent1
+                        OperationStatus.COMPLETED -> Color(0xFF4CAF50)
+                        OperationStatus.ERROR -> Color(0xFFFF5252)
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(Color.White.copy(alpha = 0.1f))
+                    ) {
+                        val fraction = if (op.total > 0) (op.current.toFloat() / op.total).coerceIn(0f, 1f) else 0f
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(fraction)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(barColor)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${op.current} / ${op.total} ITEMS",
+                            color = Color(0xFFA0A0C0),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        when (op.status) {
+                            OperationStatus.COMPLETED -> Text("DONE", color = Color(0xFF4CAF50), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            OperationStatus.ERROR -> Text("FAILED", color = Color(0xFFFF5252), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                            else -> {}
+                        }
+                    }
+                }
+            }
         }
     }
 }
