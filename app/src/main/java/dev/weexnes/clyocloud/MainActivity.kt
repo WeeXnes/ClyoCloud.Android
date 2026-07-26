@@ -1756,6 +1756,7 @@ fun DashboardScreen(
             activeDetailMedia = null
         } else if (activeViewerFile != null) {
             activeViewerFile = null
+            activeViewerMediaList = emptyList()
         } else if (activeViewerMedia != null) {
             activeViewerMedia = null
         } else if (currentTab == DashboardTab.Shorts || currentTab == DashboardTab.Favorites) {
@@ -3721,7 +3722,9 @@ fun DashboardScreen(
 
         // Immersive viewer for files
         if (activeViewerFile != null) {
-            val mediaFiles = remember(currentTab, filesList, favoritesList) {
+            val mediaFiles = if (activeViewerMediaList.isNotEmpty()) {
+                activeViewerMediaList
+            } else remember(currentTab, filesList, favoritesList) {
                 if (currentTab == DashboardTab.Favorites) {
                     favoritesList.filter { !it.isFolder && (isImageFile(it.name) || isVideoFile(it.name)) }
                 } else {
@@ -3735,7 +3738,10 @@ fun DashboardScreen(
                 mediaFiles = mediaFiles,
                 initialIndex = initialIndex,
                 currentPath = currentPath,
-                onClose = { activeViewerFile = null },
+                onClose = {
+                    activeViewerFile = null
+                    activeViewerMediaList = emptyList()
+                },
                 onToggleFavorite = { file, isFav ->
                     scope.launch {
                         val fullFilePath = file.fullPath ?: (if (currentPath.isEmpty()) file.name else "$currentPath/${file.name}")
