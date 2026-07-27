@@ -16,9 +16,22 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+
+enum class OperationStatus {
+    PROCESSING, COMPLETED, ERROR
+}
+
+data class ProgressOperation(
+    val id: String,
+    val title: String,
+    val current: Int,
+    val total: Int,
+    val status: OperationStatus
+)
 
 class BackgroundOperationService : Service() {
 
@@ -30,10 +43,6 @@ class BackgroundOperationService : Service() {
         private const val NOTIFICATION_ID = 9001
 
         private const val ACTION_UPLOAD = "dev.weexnes.clyocloud.ACTION_UPLOAD"
-        private const val ACTION_BULK_RENAME = "dev.weexnes.clyocloud.ACTION_BULK_RENAME"
-        private const val ACTION_BULK_DELETE = "dev.weexnes.clyocloud.ACTION_BULK_DELETE"
-        private const val ACTION_BULK_FAVORITE = "dev.weexnes.clyocloud.ACTION_BULK_FAVORITE"
-        private const val ACTION_BULK_TAG = "dev.weexnes.clyocloud.ACTION_BULK_TAG"
 
         private val _operations = MutableStateFlow<List<ProgressOperation>>(emptyList())
         val activeOperations: StateFlow<List<ProgressOperation>> = _operations.asStateFlow()
@@ -51,7 +60,25 @@ class BackgroundOperationService : Service() {
                 putExtra("token", token)
                 putExtra("targetPath", targetPath)
                 putParcelableArrayListExtra("uris", uris)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
+
+            for (uri in uris) {
+                try {
+                    context.grantUriPermission(
+                        context.packageName,
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {}
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (_: Exception) {}
+            }
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 context.startForegroundService(intent)
             } else {
@@ -84,6 +111,7 @@ class BackgroundOperationService : Service() {
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        cleanStagingDirectory()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -126,6 +154,17 @@ class BackgroundOperationService : Service() {
             }
             val manager = getSystemService(NotificationManager::class.java)
             manager?.createNotificationChannel(channel)
+        }
+    }
+
+    private fun cleanStagingDirectory() {
+        try {
+            val stagingDir = File(cacheDir, "upload_staging")
+            if (stagingDir.exists()) {
+                stagingDir.listFiles()?.forEach { it.delete() }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to clean staging directory", e)
         }
     }
 
@@ -229,6 +268,26 @@ class BackgroundOperationService : Service() {
                 Log.e(TAG, "Failed to resolve metadata for $uri", e)
             }
 
+            // Stage URI content to private cache file to insulate against ContentResolver permission revocation when app reopens
+            var stagedFile: File? = null
+            try {
+                val stagingDir = File(cacheDir, "upload_staging").apply { mkdirs() }
+                val tempFile = File(stagingDir, "upload_${System.currentTimeMillis()}_$index.tmp")
+                contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output, bufferSize = 64 * 1024)
+                    }
+                }
+                if (tempFile.exists() && tempFile.length() > 0) {
+                    stagedFile = tempFile
+                    if (fileSize <= 0) {
+                        fileSize = tempFile.length()
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Staging to cache failed for $fileName, will attempt direct stream", e)
+            }
+
             val currentFileNum = index + 1
             updateSystemNotification(
                 "Uploading Files ($currentFileNum/$total)",
@@ -242,6 +301,7 @@ class BackgroundOperationService : Service() {
                 token = token,
                 targetPath = targetPath,
                 fileUri = uri,
+                stagedFile = stagedFile,
                 fileName = fileName,
                 fileSize = fileSize,
                 onProgressPercent = { percent ->
@@ -253,6 +313,10 @@ class BackgroundOperationService : Service() {
                     )
                 }
             )
+
+            try {
+                stagedFile?.delete()
+            } catch (_: Exception) {}
 
             if (success) {
                 successCount++
@@ -275,6 +339,7 @@ class BackgroundOperationService : Service() {
         }
         showCompletionNotification("Upload Finished", completionText)
 
+        cleanStagingDirectory()
         stopSelf()
     }
 
@@ -283,6 +348,7 @@ class BackgroundOperationService : Service() {
         token: String,
         targetPath: String,
         fileUri: Uri,
+        stagedFile: File?,
         fileName: String,
         fileSize: Long,
         onProgressPercent: (Int) -> Unit
@@ -314,18 +380,28 @@ class BackgroundOperationService : Service() {
             // Write files header
             writer.write("--$boundary\r\n")
             writer.write("Content-Disposition: form-data; name=\"files\"; filename=\"$fileName\"\r\n")
-            val mimeType = contentResolver.getType(fileUri) ?: "application/octet-stream"
+            val mimeType = try {
+                contentResolver.getType(fileUri) ?: "application/octet-stream"
+            } catch (_: Exception) {
+                "application/octet-stream"
+            }
             writer.write("Content-Type: $mimeType\r\n\r\n")
             writer.flush()
 
-            // Stream file content using 64KB buffer
-            contentResolver.openInputStream(fileUri)?.use { inputStream ->
+            // Open input stream from private staged file or fallback to ContentResolver
+            val inputStream = if (stagedFile != null && stagedFile.exists()) {
+                stagedFile.inputStream()
+            } else {
+                contentResolver.openInputStream(fileUri)
+            }
+
+            inputStream?.use { input ->
                 val buffer = ByteArray(64 * 1024)
                 var bytesRead: Int
                 var totalBytesSent = 0L
                 var lastProgressReportTime = 0L
 
-                while (inputStream.read(buffer).also { bytesRead = it } != -1) {
+                while (input.read(buffer).also { bytesRead = it } != -1) {
                     outputStream.write(buffer, 0, bytesRead)
                     totalBytesSent += bytesRead
 
@@ -355,6 +431,7 @@ class BackgroundOperationService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        cleanStagingDirectory()
         serviceScope.cancel()
     }
 }

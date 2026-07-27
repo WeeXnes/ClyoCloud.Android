@@ -5760,18 +5760,6 @@ fun AsyncServerImage(
     }
 }
 
-enum class OperationStatus {
-    PROCESSING, COMPLETED, ERROR
-}
-
-data class ProgressOperation(
-    val id: String,
-    val title: String,
-    val current: Int,
-    val total: Int,
-    val status: OperationStatus
-)
-
 @Composable
 fun OperationsProgressOverlay(
     operations: List<ProgressOperation>,
