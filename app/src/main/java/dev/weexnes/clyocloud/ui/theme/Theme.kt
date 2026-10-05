@@ -25,7 +25,6 @@ private val LightColorScheme = lightColorScheme(
     tertiary = ClyoSlateDark,
     background = ClyoLightBackground,
     surface = ClyoLightSurface
-)
     /* Other default colors to override
     background = Color(0xFFFFFBFE),
     surface = Color(0xFFFFFBFE),
