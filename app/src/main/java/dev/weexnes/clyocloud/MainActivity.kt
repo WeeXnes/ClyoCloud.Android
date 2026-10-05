@@ -262,6 +262,40 @@ val DeleteIcon: ImageVector
         close()
     }.build()
 
+val RestoreFromTrashIcon: ImageVector
+    get() = ImageVector.Builder(
+        name = "RestoreFromTrash",
+        defaultWidth = 24.dp,
+        defaultHeight = 24.dp,
+        viewportWidth = 24f,
+        viewportHeight = 24f
+    ).path(fill = SolidColor(Color.White)) {
+        moveTo(19f, 4f)
+        lineTo(15.5f, 4f)
+        lineTo(14.5f, 3f)
+        lineTo(9.5f, 3f)
+        lineTo(8.5f, 4f)
+        lineTo(5f, 4f)
+        lineTo(5f, 6f)
+        lineTo(19f, 6f)
+        close()
+        moveTo(6f, 19f)
+        curveTo(6f, 20.1f, 6.9f, 21f, 8f, 21f)
+        lineTo(16f, 21f)
+        curveTo(17.1f, 21f, 18f, 20.1f, 18f, 19f)
+        lineTo(18f, 7f)
+        lineTo(6f, 7f)
+        close()
+        moveTo(14f, 14f)
+        lineTo(14f, 18f)
+        lineTo(10f, 18f)
+        lineTo(10f, 14f)
+        lineTo(8f, 14f)
+        lineTo(12f, 10f)
+        lineTo(16f, 14f)
+        close()
+    }.build()
+
 val VolumeOffIcon: ImageVector
     get() = ImageVector.Builder(
         name = "VolumeOff",
@@ -955,62 +989,68 @@ data class ClyoTheme(
 object ClyoThemes {
     val Obsidian = ClyoTheme(
         name = "obsidian",
-        displayName = "Obsidian",
-        accent1 = Color(0xFFBB86FC),
-        accent2 = Color(0xFF03DAC6),
-        bgColors = listOf(Color(0xFF080612), Color(0xFF140D26), Color(0xFF05030A)),
-        glow1 = Color(0xFF8A2BE2),
-        glow2 = Color(0xFF00E5FF),
-        glow3 = Color(0xFFFF007F),
-        swatchColors = listOf(Color(0xFF8A2BE2), Color(0xFFBB86FC))
+        displayName = "Slate",
+        accent1 = Color(0xFF3B82F6),
+        accent2 = Color(0xFF0EA5E9),
+        bgColors = listOf(Color(0xFF090D16), Color(0xFF0F172A), Color(0xFF0B1120)),
+        glow1 = Color.Transparent,
+        glow2 = Color.Transparent,
+        glow3 = Color.Transparent,
+        swatchColors = listOf(Color(0xFF3B82F6), Color(0xFF0EA5E9))
     )
-    val Neon = ClyoTheme(
-        name = "neon",
-        displayName = "Neon",
-        accent1 = Color(0xFF39FF14),
-        accent2 = Color(0xFFFF00FF),
-        bgColors = listOf(Color(0xFF030803), Color(0xFF0A0F0A), Color(0xFF020302)),
-        glow1 = Color(0xFF39FF14),
-        glow2 = Color(0xFFFF00FF),
-        glow3 = Color(0xFFFFFF00),
-        swatchColors = listOf(Color(0xFF39FF14), Color(0xFFFF00FF))
+    val Zinc = ClyoTheme(
+        name = "zinc",
+        displayName = "Zinc",
+        accent1 = Color(0xFF6366F1),
+        accent2 = Color(0xFF818CF8),
+        bgColors = listOf(Color(0xFF09090B), Color(0xFF141417), Color(0xFF18181B)),
+        glow1 = Color.Transparent,
+        glow2 = Color.Transparent,
+        glow3 = Color.Transparent,
+        swatchColors = listOf(Color(0xFF6366F1), Color(0xFF818CF8))
     )
-    val Sunrise = ClyoTheme(
-        name = "sunrise",
-        displayName = "Sunrise",
-        accent1 = Color(0xFFFFB347),
-        accent2 = Color(0xFFFF6B6B),
-        bgColors = listOf(Color(0xFF0A0A1A), Color(0xFF1A0A1F), Color(0xFF100518)),
-        glow1 = Color(0xFFFFB347),
-        glow2 = Color(0xFFFF6B6B),
-        glow3 = Color(0xFFFF4081),
-        swatchColors = listOf(Color(0xFFFFB347), Color(0xFFFF6B6B))
+    val Midnight = ClyoTheme(
+        name = "midnight",
+        displayName = "Midnight",
+        accent1 = Color(0xFF2563EB),
+        accent2 = Color(0xFF38BDF8),
+        bgColors = listOf(Color(0xFF020617), Color(0xFF0B0F19), Color(0xFF02040A)),
+        glow1 = Color.Transparent,
+        glow2 = Color.Transparent,
+        glow3 = Color.Transparent,
+        swatchColors = listOf(Color(0xFF2563EB), Color(0xFF38BDF8))
     )
     val Arctic = ClyoTheme(
         name = "arctic",
-        displayName = "Arctic",
-        accent1 = Color(0xFF74D7F7),
-        accent2 = Color(0xFFB2F5EA),
-        bgColors = listOf(Color(0xFF050C14), Color(0xFF0C1825), Color(0xFF040810)),
-        glow1 = Color(0xFF74D7F7),
-        glow2 = Color(0xFFB2F5EA),
-        glow3 = Color(0xFFE0F7FA),
-        swatchColors = listOf(Color(0xFF74D7F7), Color(0xFFB2F5EA))
+        displayName = "Nordic",
+        accent1 = Color(0xFF38BDF8),
+        accent2 = Color(0xFF7DD3FC),
+        bgColors = listOf(Color(0xFF08121E), Color(0xFF0E1D2D), Color(0xFF070F19)),
+        glow1 = Color.Transparent,
+        glow2 = Color.Transparent,
+        glow3 = Color.Transparent,
+        swatchColors = listOf(Color(0xFF38BDF8), Color(0xFF7DD3FC))
     )
     val Forest = ClyoTheme(
         name = "forest",
-        displayName = "Forest",
-        accent1 = Color(0xFF6BCB77),
-        accent2 = Color(0xFFFFD93D),
-        bgColors = listOf(Color(0xFF040A04), Color(0xFF0A140A), Color(0xFF020602)),
-        glow1 = Color(0xFF6BCB77),
-        glow2 = Color(0xFFFFD93D),
-        glow3 = Color(0xFF00C853),
-        swatchColors = listOf(Color(0xFF6BCB77), Color(0xFFFFD93D))
+        displayName = "Emerald",
+        accent1 = Color(0xFF10B981),
+        accent2 = Color(0xFF14B8A6),
+        bgColors = listOf(Color(0xFF05120B), Color(0xFF0A1F16), Color(0xFF040D09)),
+        glow1 = Color.Transparent,
+        glow2 = Color.Transparent,
+        glow3 = Color.Transparent,
+        swatchColors = listOf(Color(0xFF10B981), Color(0xFF14B8A6))
     )
 
-    val all = listOf(Obsidian, Neon, Sunrise, Arctic, Forest)
-    fun byName(name: String) = all.firstOrNull { it.name == name } ?: Obsidian
+    val all = listOf(Obsidian, Zinc, Midnight, Arctic, Forest)
+    fun byName(name: String) = when (name.lowercase()) {
+        "zinc" -> Zinc
+        "midnight" -> Midnight
+        "arctic", "nordic" -> Arctic
+        "forest", "emerald" -> Forest
+        else -> Obsidian
+    }
 }
 
 object ThemeManager {
@@ -1054,38 +1094,6 @@ fun GlassBackground(content: @Composable () -> Unit) {
             .fillMaxSize()
             .background(Brush.verticalGradient(colors = theme.bgColors))
     ) {
-        // Glowing backdrops
-        Box(
-            modifier = Modifier
-                .size(350.dp)
-                .align(Alignment.TopStart)
-                .graphicsLayer {
-                    translationX = -120f
-                    translationY = -120f
-                    alpha = 0.18f
-                }
-                .background(Brush.radialGradient(listOf(theme.glow1, Color.Transparent)))
-        )
-        Box(
-            modifier = Modifier
-                .size(450.dp)
-                .align(Alignment.BottomEnd)
-                .graphicsLayer {
-                    translationX = 180f
-                    translationY = 180f
-                    alpha = 0.15f
-                }
-                .background(Brush.radialGradient(listOf(theme.glow2, Color.Transparent)))
-        )
-        Box(
-            modifier = Modifier
-                .size(300.dp)
-                .align(Alignment.Center)
-                .graphicsLayer {
-                    alpha = 0.08f
-                }
-                .background(Brush.radialGradient(listOf(theme.glow3, Color.Transparent)))
-        )
         content()
     }
 }
@@ -1093,55 +1101,36 @@ fun GlassBackground(content: @Composable () -> Unit) {
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,
-    shape: Shape = RoundedCornerShape(24.dp),
+    shape: Shape = RoundedCornerShape(16.dp),
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val theme = LocalClyoTheme.current
     Box(
         modifier = modifier.clip(shape)
     ) {
-        // Modern clean semi-transparent dark background gradient
+        // Modern clean dark background matching ClyoCloud web UI
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
-                            Color(0xFF151221).copy(alpha = 0.90f),
-                            Color(0xFF0C0916).copy(alpha = 0.96f)
+                            Color(0xFF151D2A).copy(alpha = 0.95f),
+                            Color(0xFF0F172A).copy(alpha = 0.98f)
                         )
                     )
                 )
         )
-        // Glaze layer — subtle theme-tinted gradient overlay for vibrancy
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            theme.accent1.copy(alpha = 0.06f),
-                            theme.accent2.copy(alpha = 0.02f)
-                        )
-                    )
-                )
-        )
-        // Border ring
+        // Clean subtle border
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .border(
                     width = 1.dp,
-                    brush = Brush.linearGradient(
-                        colors = listOf(
-                            theme.accent1.copy(alpha = 0.35f),
-                            Color.White.copy(alpha = 0.08f)
-                        )
-                    ),
+                    color = Color.White.copy(alpha = 0.08f),
                     shape = shape
                 )
         )
-        // Sharp content
+        // Card content
         Column(modifier = Modifier.fillMaxWidth(), content = content)
     }
 }
@@ -1161,19 +1150,19 @@ fun GlassTextField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label, color = Color(0xFFA0A0C0)) },
+        label = { Text(label, color = Color(0xFF94A3B8)) },
         singleLine = singleLine,
         visualTransformation = visualTransformation,
         keyboardOptions = keyboardOptions,
         modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color(0xFFF3F3F7),
-            unfocusedTextColor = Color(0xFFF3F3F7),
+            focusedTextColor = Color(0xFFF8FAFC),
+            unfocusedTextColor = Color(0xFFF8FAFC),
             focusedBorderColor = theme.accent1,
-            unfocusedBorderColor = Color.White.copy(alpha = 0.15f),
+            unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
             focusedLabelColor = theme.accent1,
-            unfocusedLabelColor = Color(0xFFA0A0C0),
+            unfocusedLabelColor = Color(0xFF94A3B8),
             cursorColor = theme.accent1
         )
     )
@@ -2668,49 +2657,27 @@ fun DashboardScreen(
                 }
             }
 
-            // Bottom Navigation Bar — modern clean style with theme accents
+            // Bottom Navigation Bar — clean modern style matching ClyoCloud web UI
             val theme = LocalClyoTheme.current
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp))
+                    .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
             ) {
-                // Modern clean semi-transparent dark background gradient
+                // Clean dark surface
                 Box(
                     modifier = Modifier
                         .matchParentSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color(0xFF151221).copy(alpha = 0.90f),
-                                    Color(0xFF0C0916).copy(alpha = 0.96f)
-                                )
-                            )
-                        )
+                        .background(Color(0xFF0F172A).copy(alpha = 0.96f))
                 )
-                // Theme tint
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    theme.accent1.copy(alpha = 0.06f),
-                                    theme.accent2.copy(alpha = 0.02f)
-                                )
-                            )
-                        )
-                )
-                // Top edge border
+                // Crisp subtle top border
                 Box(
                     modifier = Modifier
                         .matchParentSize()
                         .border(
                             width = 1.dp,
-                            brush = Brush.linearGradient(
-                                listOf(theme.accent1.copy(alpha = 0.3f), Color.White.copy(alpha = 0.05f))
-                            ),
-                            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                            color = Color.White.copy(alpha = 0.08f),
+                            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
                         )
                 )
                 NavigationBar(
@@ -2725,9 +2692,9 @@ fun DashboardScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = theme.accent1,
                             selectedTextColor = theme.accent1,
-                            unselectedIconColor = Color(0xFFA0A0C0),
-                            unselectedTextColor = Color(0xFFA0A0C0),
-                            indicatorColor = theme.accent1.copy(alpha = 0.12f)
+                            unselectedIconColor = Color(0xFF94A3B8),
+                            unselectedTextColor = Color(0xFF94A3B8),
+                            indicatorColor = theme.accent1.copy(alpha = 0.14f)
                         )
                     )
                     NavigationBarItem(
@@ -2738,9 +2705,9 @@ fun DashboardScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = theme.accent1,
                             selectedTextColor = theme.accent1,
-                            unselectedIconColor = Color(0xFFA0A0C0),
-                            unselectedTextColor = Color(0xFFA0A0C0),
-                            indicatorColor = theme.accent1.copy(alpha = 0.12f)
+                            unselectedIconColor = Color(0xFF94A3B8),
+                            unselectedTextColor = Color(0xFF94A3B8),
+                            indicatorColor = theme.accent1.copy(alpha = 0.14f)
                         )
                     )
                     NavigationBarItem(
@@ -2751,9 +2718,9 @@ fun DashboardScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = theme.accent1,
                             selectedTextColor = theme.accent1,
-                            unselectedIconColor = Color(0xFFA0A0C0),
-                            unselectedTextColor = Color(0xFFA0A0C0),
-                            indicatorColor = theme.accent1.copy(alpha = 0.12f)
+                            unselectedIconColor = Color(0xFF94A3B8),
+                            unselectedTextColor = Color(0xFF94A3B8),
+                            indicatorColor = theme.accent1.copy(alpha = 0.14f)
                         )
                     )
                     NavigationBarItem(
@@ -2764,9 +2731,9 @@ fun DashboardScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = theme.accent1,
                             selectedTextColor = theme.accent1,
-                            unselectedIconColor = Color(0xFFA0A0C0),
-                            unselectedTextColor = Color(0xFFA0A0C0),
-                            indicatorColor = theme.accent1.copy(alpha = 0.12f)
+                            unselectedIconColor = Color(0xFF94A3B8),
+                            unselectedTextColor = Color(0xFF94A3B8),
+                            indicatorColor = theme.accent1.copy(alpha = 0.14f)
                         )
                     )
                     NavigationBarItem(
@@ -2777,9 +2744,9 @@ fun DashboardScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = theme.accent1,
                             selectedTextColor = theme.accent1,
-                            unselectedIconColor = Color(0xFFA0A0C0),
-                            unselectedTextColor = Color(0xFFA0A0C0),
-                            indicatorColor = theme.accent1.copy(alpha = 0.12f)
+                            unselectedIconColor = Color(0xFF94A3B8),
+                            unselectedTextColor = Color(0xFF94A3B8),
+                            indicatorColor = theme.accent1.copy(alpha = 0.14f)
                         )
                     )
                 }
@@ -5330,6 +5297,14 @@ fun SettingsTabContent(
 ) {
     val theme = LocalClyoTheme.current
     val context = LocalContext.current
+    var showRecycleBinDialog by remember { mutableStateOf(false) }
+
+    if (showRecycleBinDialog) {
+        RecycleBinDialog(
+            connection = connection,
+            onDismiss = { showRecycleBinDialog = false }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -5365,8 +5340,83 @@ fun SettingsTabContent(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text("SERVER", color = Color(0xFFA0A0C0), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Text("SERVER", color = Color(0xFF94A3B8), fontSize = 10.sp, fontWeight = FontWeight.Bold)
                         Text(connection.serverUrl, color = Color.White, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+
+        // Recycle Bin card
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(Color(0xFFEF4444).copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(RestoreFromTrashIcon, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
+                            }
+                            Column {
+                                Text("Recycle Bin", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("Restore or permanently delete files", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                            }
+                        }
+                    }
+                    Button(
+                        onClick = { showRecycleBinDialog = true },
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.accent1)
+                    ) {
+                        Text("Manage Deleted Items", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+
+        // Storage & Cache card
+        item {
+            GlassCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(theme.accent1.copy(alpha = 0.15f), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("⚡", fontSize = 18.sp)
+                        }
+                        Column {
+                            Text("Thumbnail & Preview Cache", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            Text("Fast local caching for instant previews", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            ImageCacheManager.clear(context)
+                            Toast.makeText(context, "Thumbnail and preview cache cleared", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(44.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155))
+                    ) {
+                        Text("Clear Local Cache", fontWeight = FontWeight.Medium, fontSize = 13.sp, color = Color.White)
                     }
                 }
             }
@@ -5390,7 +5440,7 @@ fun SettingsTabContent(
                         }
                         Column {
                             Text("App Theme", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                            Text("Choose your colour palette", color = Color(0xFFA0A0C0), fontSize = 12.sp)
+                            Text("Modern clean themes matching the web UI", color = Color(0xFF94A3B8), fontSize = 12.sp)
                         }
                     }
 
@@ -5416,7 +5466,7 @@ fun SettingsTabContent(
                                         )
                                         .then(
                                             if (isSelected) Modifier.border(2.5.dp, Color.White, CircleShape)
-                                            else Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+                                             else Modifier.border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -5426,8 +5476,8 @@ fun SettingsTabContent(
                                 }
                                 Text(
                                     t.displayName,
-                                    color = if (isSelected) theme.accent1 else Color(0xFFA0A0C0),
-                                    fontSize = 9.sp,
+                                    color = if (isSelected) theme.accent1 else Color(0xFF94A3B8),
+                                    fontSize = 10.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                 )
                             }
@@ -5445,7 +5495,7 @@ fun SettingsTabContent(
                         onClick = onDisconnect,
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5252))
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -5453,6 +5503,243 @@ fun SettingsTabContent(
                         ) {
                             Icon(ExitIcon, contentDescription = "Logout", modifier = Modifier.size(18.dp))
                             Text("Disconnect Account", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Recycle Bin Dialog with Search, Restore, and Permanent Delete
+@Composable
+fun RecycleBinDialog(
+    connection: CloudConnection,
+    onDismiss: () -> Unit
+) {
+    val theme = LocalClyoTheme.current
+    val coroutineScope = rememberCoroutineScope()
+    var trashItems by remember { mutableStateOf<List<CloudTrashItem>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var searchQuery by remember { mutableStateOf("") }
+
+    fun refreshTrash() {
+        isLoading = true
+        coroutineScope.launch {
+            trashItems = fetchTrashList(connection.serverUrl, connection.token)
+            isLoading = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshTrash()
+    }
+
+    val filteredItems = remember(trashItems, searchQuery) {
+        if (searchQuery.isBlank()) trashItems
+        else trashItems.filter { it.originalPath.contains(searchQuery, ignoreCase = true) }
+    }
+
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.8f))
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            GlassCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.85f),
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(20.dp)
+                ) {
+                    // Header
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(Color(0xFFEF4444).copy(alpha = 0.15f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(RestoreFromTrashIcon, contentDescription = null, tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
+                            }
+                            Column {
+                                Text("Recycle Bin", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                Text("${trashItems.size} item(s)", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                            }
+                        }
+                        IconButton(onClick = onDismiss) {
+                            Icon(CloseIcon, contentDescription = "Close", tint = Color.White)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Notice / Banner
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF1E293B), RoundedCornerShape(10.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            "Items are automatically purged after 30 days.",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 11.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Search & Empty buttons
+                    if (trashItems.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            GlassTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                label = "Search deleted files...",
+                                modifier = Modifier.weight(1f)
+                            )
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        isLoading = true
+                                        val ok = emptyAllTrash(connection.serverUrl, connection.token)
+                                        if (ok) refreshTrash()
+                                        isLoading = false
+                                    }
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Text("Empty", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Content
+                    if (isLoading) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = theme.accent1)
+                        }
+                    } else if (filteredItems.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(RestoreFromTrashIcon, contentDescription = null, tint = Color(0xFF64748B), modifier = Modifier.size(48.dp))
+                                Text(
+                                    if (searchQuery.isNotEmpty()) "No matching deleted items" else "Recycle Bin is empty",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(filteredItems, key = { it.id }) { item ->
+                                val daysLeft = remember(item.expiresAt) {
+                                    val diff = item.expiresAt - System.currentTimeMillis()
+                                    (diff / (1000L * 60 * 60 * 24)).coerceAtLeast(0)
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(Color(0xFF0F172A).copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+                                        .padding(12.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.weight(1f),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Icon(
+                                                if (item.isFolder) FolderIcon else FileIcon,
+                                                contentDescription = null,
+                                                tint = if (item.isFolder) theme.accent1 else Color(0xFF94A3B8),
+                                                modifier = Modifier.size(24.dp)
+                                            )
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    item.originalPath.substringAfterLast('/'),
+                                                    color = Color.White,
+                                                    fontWeight = FontWeight.Medium,
+                                                    fontSize = 14.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(formatFileSize(item.size), color = Color(0xFF94A3B8), fontSize = 11.sp)
+                                                    Text("•", color = Color(0xFF64748B), fontSize = 11.sp)
+                                                    Text(
+                                                        "$daysLeft days left",
+                                                        color = if (daysLeft <= 3) Color(0xFFEF4444) else Color(0xFFF59E0B),
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.SemiBold
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            // Restore button
+                                            IconButton(
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        val ok = restoreTrashItem(connection.serverUrl, connection.token, item.id)
+                                                        if (ok) refreshTrash()
+                                                    }
+                                                }
+                                            ) {
+                                                Icon(RestoreFromTrashIcon, contentDescription = "Restore", tint = theme.accent1, modifier = Modifier.size(20.dp))
+                                            }
+                                            // Permanently delete button
+                                            IconButton(
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        val ok = deleteTrashItem(connection.serverUrl, connection.token, item.id)
+                                                        if (ok) refreshTrash()
+                                                    }
+                                                }
+                                            ) {
+                                                Icon(DeleteIcon, contentDescription = "Delete Permanently", tint = Color(0xFFEF4444), modifier = Modifier.size(20.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -5715,7 +6002,63 @@ fun VideoPlayer(
     )
 }
 
-// --- Composable helper: Async Server Image ---
+// --- Image Cache Manager (LruCache in-memory + disk cache) ---
+object ImageCacheManager {
+    private val maxMemory = (Runtime.getRuntime().maxMemory() / 1024).toInt()
+    private val cacheSize = (maxMemory / 8).coerceAtLeast(1024)
+
+    private val memoryCache = object : android.util.LruCache<String, Bitmap>(cacheSize) {
+        override fun sizeOf(key: String, bitmap: Bitmap): Int {
+            return (bitmap.byteCount / 1024).coerceAtLeast(1)
+        }
+    }
+
+    fun getMemory(key: String): Bitmap? = synchronized(this) { memoryCache.get(key) }
+
+    fun putMemory(key: String, bitmap: Bitmap) {
+        synchronized(this) {
+            if (memoryCache.get(key) == null) {
+                memoryCache.put(key, bitmap)
+            }
+        }
+    }
+
+    fun getDisk(context: Context, key: String): Bitmap? {
+        val cacheFile = File(context.cacheDir, "thumb_${key.hashCode()}.jpg")
+        if (cacheFile.exists() && cacheFile.length() > 0) {
+            return try {
+                BitmapFactory.decodeFile(cacheFile.absolutePath)
+            } catch (_: Exception) {
+                null
+            }
+        }
+        return null
+    }
+
+    fun putDisk(context: Context, key: String, bitmap: Bitmap) {
+        try {
+            val cacheFile = File(context.cacheDir, "thumb_${key.hashCode()}.jpg")
+            cacheFile.outputStream().use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, out)
+            }
+        } catch (_: Exception) {}
+    }
+
+    fun clear(context: Context) {
+        synchronized(this) {
+            memoryCache.evictAll()
+        }
+        try {
+            context.cacheDir.listFiles()?.forEach { file ->
+                if (file.name.startsWith("thumb_") || file.name.startsWith("gif_preview_")) {
+                    file.delete()
+                }
+            }
+        } catch (_: Exception) {}
+    }
+}
+
+// --- Composable helper: Async Server Image with Instant Caching ---
 @Composable
 fun AsyncServerImage(
     serverUrl: String,
@@ -5725,13 +6068,21 @@ fun AsyncServerImage(
     contentDescription: String?,
     modifier: Modifier = Modifier
 ) {
-    var bitmap by remember(relativePath) { mutableStateOf<ImageBitmap?>(null) }
-    var isLoading by remember(relativePath) { mutableStateOf(true) }
+    val context = LocalContext.current
+    val cacheKey = "$serverUrl:$relativePath:$isThumbnail"
+    var bitmap by remember(cacheKey) { 
+        mutableStateOf(ImageCacheManager.getMemory(cacheKey)?.asImageBitmap()) 
+    }
+    var isLoading by remember(cacheKey) { mutableStateOf(bitmap == null) }
 
-    LaunchedEffect(relativePath, token) {
+    LaunchedEffect(cacheKey, token) {
+        if (bitmap != null) {
+            isLoading = false
+            return@LaunchedEffect
+        }
         isLoading = true
         try {
-            val loaded = fetchBitmapFromUrl(serverUrl, token, relativePath, isThumbnail)
+            val loaded = fetchBitmapFromUrl(serverUrl, token, relativePath, isThumbnail, context)
             bitmap = loaded?.asImageBitmap()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -5887,9 +6238,24 @@ fun RemoteGifPlayer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var drawableState by remember(relativePath) { mutableStateOf<Drawable?>(null) }
+    val cacheFile = remember(relativePath) { 
+        File(context.cacheDir, "gif_preview_${relativePath.hashCode()}.gif") 
+    }
+    var drawableState by remember(relativePath) {
+        val initial: Drawable? = if (cacheFile.exists() && cacheFile.length() > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            try {
+                val source = ImageDecoder.createSource(cacheFile)
+                ImageDecoder.decodeDrawable(source)
+            } catch (_: Exception) {
+                null
+            }
+        } else null
+        mutableStateOf(initial)
+    }
 
     LaunchedEffect(relativePath, token) {
+        if (drawableState != null) return@LaunchedEffect
+
         withContext(Dispatchers.IO) {
             val encodedSegments = relativePath.split('/').map { Uri.encode(it) }
             val cleanPath = encodedSegments.joinToString("/")
@@ -5899,14 +6265,22 @@ fun RemoteGifPlayer(
             conn.setRequestProperty("Authorization", "Bearer $token")
             conn.connectTimeout = 10000
             conn.readTimeout = 15000
+            if (cacheFile.exists() && cacheFile.length() > 0) {
+                conn.ifModifiedSince = cacheFile.lastModified()
+            }
             try {
                 if (conn.responseCode == 200) {
-                    val cacheFile = File(context.cacheDir, "gif_preview_${relativePath.hashCode()}.gif")
                     conn.inputStream.use { input ->
                         cacheFile.outputStream().use { output ->
                             input.copyTo(output)
                         }
                     }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                        val source = ImageDecoder.createSource(cacheFile)
+                        val drawable = ImageDecoder.decodeDrawable(source)
+                        drawableState = drawable
+                    }
+                } else if (conn.responseCode == 304 && cacheFile.exists() && cacheFile.length() > 0) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                         val source = ImageDecoder.createSource(cacheFile)
                         val drawable = ImageDecoder.decodeDrawable(source)
@@ -6519,6 +6893,120 @@ suspend fun deleteFileOrFolder(serverUrl: String, token: String, path: String): 
     }
 }
 
+// Data model for Recycle Bin items
+data class CloudTrashItem(
+    val id: String,
+    val originalPath: String,
+    val trashedAt: Long,
+    val expiresAt: Long,
+    val size: Long,
+    val isFolder: Boolean
+)
+
+// Fetch all items currently in the Recycle Bin
+suspend fun fetchTrashList(serverUrl: String, token: String): List<CloudTrashItem> = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/trash")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "GET"
+    conn.connectTimeout = 10000
+    conn.readTimeout = 10000
+    conn.setRequestProperty("Authorization", "Bearer $token")
+    try {
+        if (conn.responseCode == 200) {
+            val text = conn.inputStream.bufferedReader().use { it.readText() }
+            val arr = JSONArray(text)
+            val list = mutableListOf<CloudTrashItem>()
+            for (i in 0 until arr.length()) {
+                val obj = arr.getJSONObject(i)
+                list.add(
+                    CloudTrashItem(
+                        id = obj.getString("id"),
+                        originalPath = obj.getString("originalPath"),
+                        trashedAt = obj.optLong("trashedAt", 0L),
+                        expiresAt = obj.optLong("expiresAt", 0L),
+                        size = obj.optLong("size", 0L),
+                        isFolder = obj.optBoolean("isFolder", false)
+                    )
+                )
+            }
+            list.sortedByDescending { it.trashedAt }
+        } else {
+            emptyList()
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+        emptyList()
+    } finally {
+        conn.disconnect()
+    }
+}
+
+// Restore a trashed item back to its original location
+suspend fun restoreTrashItem(serverUrl: String, token: String, id: String): Boolean = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/trash-restore")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "POST"
+    conn.connectTimeout = 10000
+    conn.readTimeout = 10000
+    conn.setRequestProperty("Authorization", "Bearer $token")
+    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+    conn.doOutput = true
+    try {
+        val body = JSONObject().apply { put("id", id) }
+        conn.outputStream.bufferedWriter().use { it.write(body.toString()) }
+        conn.responseCode in 200..299
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    } finally {
+        conn.disconnect()
+    }
+}
+
+// Permanently delete a single item from the Recycle Bin
+suspend fun deleteTrashItem(serverUrl: String, token: String, id: String): Boolean = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/trash")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "DELETE"
+    conn.connectTimeout = 10000
+    conn.readTimeout = 10000
+    conn.setRequestProperty("Authorization", "Bearer $token")
+    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+    conn.doOutput = true
+    try {
+        val body = JSONObject().apply { put("id", id) }
+        conn.outputStream.bufferedWriter().use { it.write(body.toString()) }
+        conn.responseCode in 200..299
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    } finally {
+        conn.disconnect()
+    }
+}
+
+// Permanently empty all items from the Recycle Bin
+suspend fun emptyAllTrash(serverUrl: String, token: String): Boolean = withContext(Dispatchers.IO) {
+    val url = URL("$serverUrl/api/trash")
+    val conn = url.openConnection() as HttpURLConnection
+    conn.requestMethod = "DELETE"
+    conn.connectTimeout = 10000
+    conn.readTimeout = 10000
+    conn.setRequestProperty("Authorization", "Bearer $token")
+    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+    conn.doOutput = true
+    try {
+        val body = JSONObject().apply { put("emptyAll", true) }
+        conn.outputStream.bufferedWriter().use { it.write(body.toString()) }
+        conn.responseCode in 200..299
+    } catch (e: Exception) {
+        e.printStackTrace()
+        false
+    } finally {
+        conn.disconnect()
+    }
+}
+
 // Download file directly to local Downloads folder using Android 10+ MediaStore API
 suspend fun downloadFileToDevice(
     context: Context,
@@ -6624,8 +7112,27 @@ fun shareText(context: Context, text: String, title: String = "Share Link") {
     context.startActivity(Intent.createChooser(intent, title))
 }
 
-// Fetch image bitmap helper
-suspend fun fetchBitmapFromUrl(serverUrl: String, token: String, path: String, isThumbnail: Boolean): Bitmap? = withContext(Dispatchers.IO) {
+// Fetch image bitmap helper with caching
+suspend fun fetchBitmapFromUrl(
+    serverUrl: String,
+    token: String,
+    path: String,
+    isThumbnail: Boolean,
+    context: Context? = null
+): Bitmap? = withContext(Dispatchers.IO) {
+    val cacheKey = "$serverUrl:$path:$isThumbnail"
+
+    // 1. In-memory cache check
+    ImageCacheManager.getMemory(cacheKey)?.let { return@withContext it }
+
+    // 2. Disk cache check
+    if (context != null) {
+        ImageCacheManager.getDisk(context, cacheKey)?.let {
+            ImageCacheManager.putMemory(cacheKey, it)
+            return@withContext it
+        }
+    }
+
     val endpoint = if (isThumbnail) "thumbnail" else "file"
     val encodedSegments = path.split('/').map { Uri.encode(it) }
     val cleanPath = encodedSegments.joinToString("/")
@@ -6638,7 +7145,14 @@ suspend fun fetchBitmapFromUrl(serverUrl: String, token: String, path: String, i
 
     try {
         if (conn.responseCode == 200) {
-            BitmapFactory.decodeStream(conn.inputStream)
+            val bitmap = BitmapFactory.decodeStream(conn.inputStream)
+            if (bitmap != null) {
+                ImageCacheManager.putMemory(cacheKey, bitmap)
+                if (context != null && isThumbnail) {
+                    ImageCacheManager.putDisk(context, cacheKey, bitmap)
+                }
+            }
+            bitmap
         } else {
             Log.e("ClyoCloudAndroid", "HTTP error ${conn.responseCode} for: $url")
             null
