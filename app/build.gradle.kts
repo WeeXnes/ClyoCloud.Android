@@ -11,8 +11,8 @@ android {
         applicationId = "dev.weexnes.clyocloud"
         minSdk = 35
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.2.0"
+        versionCode = 2
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -45,6 +45,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.work)
+    implementation(libs.androidx.compose.material.icons.extended)
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
     testImplementation(libs.junit)

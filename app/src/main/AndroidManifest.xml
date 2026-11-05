@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Wallpaper cycle (merged from the former ClyoWallpaper app) -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <application
         android:allowBackup="true"
@@ -36,6 +39,31 @@
             android:name=".BackgroundOperationService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <!-- Home-screen widgets: current wallpaper with countdown, and a rotating photo -->
+        <receiver
+            android:name=".wallpaper.WallpaperWidget"
+            android:label="ClyoCloud wallpaper"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_wallpaper_info" />
+        </receiver>
+
+        <receiver
+            android:name=".wallpaper.PhotoWidget"
+            android:label="ClyoCloud photo"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_photo_info" />
+        </receiver>
     </application>
 
 </manifest>

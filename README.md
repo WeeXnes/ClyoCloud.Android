@@ -10,40 +10,40 @@
 
 ---
 
-ClyoCloudAndroid brings your self-hosted ClyoCloud storage and media library directly to your mobile device. The app offers native performance, media playback, and metadata management using a glassmorphic interface.
+ClyoCloudAndroid brings your self-hosted ClyoCloud storage, media library and wallpapers to your phone. Since 1.3.0 it also includes everything from the former **ClyoWallpaper** app, so one app does both. The interface follows the same black, monochrome design as the web UI.
 
 ---
 
 ## Features
 
-*   **Secure Connection and 2FA**: Connects to your self-hosted ClyoCloud instance. Supports the two-step TOTP 2FA verification flow.
-*   **File Explorer**: Browse folders, view file metadata (size, last modified, tags, descriptions), and perform operations like file uploads and downloads.
-*   **Interface**: Dark theme featuring glass cards and custom vector icons.
-*   **Media Center**: Streaming video playback using native VideoView and slideshow previews for images.
-*   **Metadata Editor**: Edit tags, description details, toggle public share status, and add items to your favorites.
-*   **Local Caching**: Persists server connection states and credentials securely using SharedPreferences.
+*   **Sign-in**: Server address, username and password, two-factor codes, or scanning the login QR code from the website.
+*   **Files**: Browse with breadcrumbs, search by name or tag, sort, list or grid, upload in the background, new folders, and multi-select to download as ZIP, star, tag, rename, move or delete.
+*   **Details**: Notes, tags (from your tag library or new ones), public links, wallpaper and photo-widget flags, and folder thumbnails.
+*   **Media**: The video and slideshow library with search, and a full-screen Shorts feed.
+*   **Viewer**: Swipe through images and videos, pinch to zoom.
+*   **Wallpapers** (formerly ClyoWallpaper):
+    *   Library of everything marked as wallpaper, with a playlist.
+    *   Framing editor (pan and zoom per image, for home, lock or both).
+    *   Automatic changes every 15 minutes to 1 day, shuffled or in order, from all wallpapers or the playlist, optionally only on Wi-Fi. Runs on WorkManager, so it keeps going while the phone sleeps and after restarts, without a permanent notification.
+    *   **Create wallpaper**: extend and upscale any photo to 2880×1800 with the server's ComfyUI pipeline (scene preset, upscale model, custom prompts, live progress).
+    *   Home-screen widgets: current wallpaper with a countdown (tap to change), and a rotating photo widget.
+*   **Settings**: Dark or Light theme, recycle bin, image cache, sign out.
 
 ---
 
 ## Tech Stack and Architecture
 
-ClyoCloudAndroid is built using standard Android development practices:
+*   Kotlin, Jetpack Compose and Material 3 (restyled with the ClyoCloud design tokens), Geist and Geist Mono fonts bundled.
+*   `HttpURLConnection` API client (`data/Api.kt`), downsampling image loader with memory and disk cache (`data/ImageLoader.kt`).
+*   WorkManager jobs for the wallpaper cycle and photo widget (`wallpaper/`), a foreground service for uploads, the system download manager for downloads.
 
-```mermaid
-graph TD
-    User([User]) -->|Interacts| UI[Jetpack Compose UI Layer]
-    UI -->|Router / Screens| Screens[Login / Dashboard / Media]
-    Screens -->|Read/Write Prefs| Prefs[PrefsManager / SharedPreferences]
-    Screens -->|API Actions| Net[Network Layer / HttpURLConnection]
-    Net -->|HTTPS Requests| CloudServer[ClyoCloud Backend Instance]
 ```
-
-| Layer | Technology | Purpose |
-| :--- | :--- | :--- |
-| **User Interface** | **Jetpack Compose**, **Material 3** | Declarative, responsive UI featuring custom animations and glassmorphic designs. |
-| **Programming Language** | **Kotlin** | Asynchronous execution with Coroutines. |
-| **Networking** | **HttpURLConnection** & **JSON Processing** | Lightweight, dependency-free HTTP communication with ClyoCloud REST API endpoints. |
-| **Session Persistence** | **SharedPreferences** | Local storage of instance URLs, usernames, and authentication tokens. |
+app/src/main/java/dev/weexnes/clyocloud/
+├── MainActivity.kt          entry point
+├── data/                    API client, models, session, image loading
+├── ui/                      app state, navigation, theme, components, screens
+└── wallpaper/               wallpaper cycle, applying/framing, widgets
+```
 
 ---
 
@@ -51,9 +51,10 @@ graph TD
 
 ### Prerequisites
 
-*   **Android Studio** (Koala or newer recommended)
-*   **Android SDK** (API Level 24+ supported, API 34 target)
-*   **ClyoCloud Server**: A running instance of ClyoCloud accessible over the network.
+*   **Android Studio**, or the Android SDK command-line tools with platform 35
+*   **JDK 21** for Gradle (17 to 25 work; newer JDKs are not supported by Gradle 9.1)
+*   **A phone with Android 15 or newer** (minSdk 35)
+*   **ClyoCloud Server** 2.21.0 or newer (for wallpaper generation and wallpaper sync), reachable from the phone
 
 ### Pre-built APKs
 

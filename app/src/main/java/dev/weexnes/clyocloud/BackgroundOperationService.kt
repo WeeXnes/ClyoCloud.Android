@@ -365,6 +365,8 @@ class BackgroundOperationService : Service() {
                 readTimeout = 60000
                 setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
                 setRequestProperty("Authorization", "Bearer $token")
+                // Stream the body instead of buffering the whole file in memory (large uploads ran out of memory)
+                setChunkedStreamingMode(64 * 1024)
             }
 
             val outputStream = conn.outputStream
@@ -379,7 +381,8 @@ class BackgroundOperationService : Service() {
 
             // Write files header
             writer.write("--$boundary\r\n")
-            writer.write("Content-Disposition: form-data; name=\"files\"; filename=\"$fileName\"\r\n")
+            val safeName = fileName.replace("\"", "_").replace("\r", "").replace("\n", "")
+            writer.write("Content-Disposition: form-data; name=\"files\"; filename=\"$safeName\"\r\n")
             val mimeType = try {
                 contentResolver.getType(fileUri) ?: "application/octet-stream"
             } catch (_: Exception) {
