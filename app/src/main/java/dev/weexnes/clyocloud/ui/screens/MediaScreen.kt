@@ -104,7 +104,8 @@ private fun MediaLibrary() {
         loading = true
         try {
             val result = state.api.videos(appliedQuery.ifBlank { null }, page, PAGE_SIZE)
-            items = if (page == 1) result.items else items + result.items
+            // The list can shift between pages; never show (or key) the same item twice
+            items = if (page == 1) result.items.distinctBy { it.path } else (items + result.items).distinctBy { it.path }
             total = result.total
         } catch (_: Exception) {
             state.toast("Could not load media")

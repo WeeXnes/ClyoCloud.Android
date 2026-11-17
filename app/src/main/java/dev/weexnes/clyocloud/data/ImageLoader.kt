@@ -6,6 +6,8 @@ import android.graphics.BitmapFactory
 import android.util.LruCache
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -25,6 +27,10 @@ object ImageLoader {
     private val memory = object : LruCache<String, Bitmap>((Runtime.getRuntime().maxMemory() / 8).toInt()) {
         override fun sizeOf(key: String, value: Bitmap) = value.allocationByteCount
     }
+
+    // At most a few downloads at once: the server may have to run ffmpeg for each new thumbnail,
+    // and a screen full of videos must not start dozens of ffmpeg processes in parallel
+    private val downloads = Semaphore(4)
 
     // One download per URL at a time; concurrent callers wait and then hit the cache
     private val locks = HashMap<String, Mutex>()
@@ -61,7 +67,7 @@ object ImageLoader {
 
             // Download to a temp file first: decoding twice (bounds, then pixels) needs the bytes twice
             val tmp = File.createTempFile("img", ".tmp", context.cacheDir)
-            try {
+            try { downloads.withPermit {
                 val conn = URL(url).openConnection() as HttpURLConnection
                 conn.connectTimeout = 15_000
                 conn.readTimeout = 60_000
@@ -71,6 +77,7 @@ object ImageLoader {
                     conn.inputStream.use { input -> tmp.outputStream().use { input.copyTo(it, 64 * 1024) } }
                 } finally {
                     conn.disconnect()
+                }
                 }
                 val bitmap = decodeFile(tmp, maxSize) ?: return@withLock null
                 memory.put(key, bitmap)

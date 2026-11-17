@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
         // Bring back timers that were lost, e.g. after a force-stop
         WallpaperCycle.ensureScheduled(this)
         PhotoWidgetCycle.ensureScheduled(this)
+        dev.weexnes.clyocloud.backup.CameraBackup.ensureScheduled(this)
 
         if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)

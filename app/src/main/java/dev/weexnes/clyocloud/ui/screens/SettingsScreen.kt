@@ -90,6 +90,14 @@ fun SettingsScreen() {
             }
             Spacer(Modifier.height(32.dp))
 
+            SectionHeader("Phone")
+            HairList {
+                HairRow("Camera backup", hint = if (dev.weexnes.clyocloud.backup.BackupPrefs.enabled(context)) "On · ${dev.weexnes.clyocloud.backup.BackupPrefs.folder(context)}" else "Off", onClick = { state.push(Overlay.Backup) }) {
+                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = c.text3, modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(Modifier.height(32.dp))
+
             SectionHeader("Storage")
             HairList {
                 HairRow("Recycle bin", hint = "Restore or permanently delete items", onClick = { state.push(Overlay.RecycleBin) }) {

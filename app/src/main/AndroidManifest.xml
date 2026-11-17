@@ -9,6 +9,10 @@
     <!-- Wallpaper cycle (merged from the former ClyoWallpaper app) -->
     <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Camera backup -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
 
     <application
         android:allowBackup="true"
@@ -39,6 +43,32 @@
             android:name=".BackgroundOperationService"
             android:foregroundServiceType="dataSync"
             android:exported="false" />
+
+        <!-- "Save to ClyoCloud" in every app's share menu -->
+        <activity
+            android:name=".ShareActivity"
+            android:exported="true"
+            android:label="Save to ClyoCloud"
+            android:theme="@style/Theme.ClyoCloud"
+            android:excludeFromRecents="true"
+            android:taskAffinity="dev.weexnes.clyocloud.share">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+        </activity>
+
+        <!-- Camera backup runs in WorkManager; long manual runs show a data-sync notification -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
 
         <!-- Home-screen widgets: current wallpaper with countdown, and a rotating photo -->
         <receiver

@@ -22,6 +22,7 @@ sealed class Overlay {
     data class Viewer(val files: List<CloudFile>, val startIndex: Int) : Overlay()
     data class WallpaperEditor(val path: String) : Overlay()
     data object RecycleBin : Overlay()
+    data object Backup : Overlay()
 }
 
 /** App-wide state shared by every screen. */

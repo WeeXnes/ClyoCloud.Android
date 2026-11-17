@@ -107,6 +107,7 @@ private fun MainScaffold(state: AppState) {
                     is Overlay.Viewer -> ViewerScreen(overlay.files, overlay.startIndex, onClose = { state.pop() })
                     is Overlay.WallpaperEditor -> WallpaperEditorScreen(overlay.path, onClose = { state.pop() })
                     Overlay.RecycleBin -> RecycleBinScreen(onClose = { state.pop() })
+                    Overlay.Backup -> dev.weexnes.clyocloud.ui.screens.BackupScreen(onClose = { state.pop() })
                 }
             }
             if (index == overlays.lastIndex) BackHandler { state.pop() }

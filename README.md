@@ -27,7 +27,9 @@ ClyoCloudAndroid brings your self-hosted ClyoCloud storage, media library and wa
     *   Automatic changes every 15 minutes to 1 day, shuffled or in order, from all wallpapers or the playlist, optionally only on Wi-Fi. Runs on WorkManager, so it keeps going while the phone sleeps and after restarts, without a permanent notification.
     *   **Create wallpaper**: extend and upscale any photo to 2880×1800 with the server's ComfyUI pipeline (scene preset, upscale model, custom prompts, live progress).
     *   Home-screen widgets: current wallpaper with a countdown (tap to change), and a rotating photo widget.
-*   **Settings**: Dark or Light theme, recycle bin, image cache, sign out.
+*   **Camera backup**: New photos and videos upload automatically shortly after they're taken (and hourly as a safety net). Choose albums, include videos or not, Wi-Fi only, only while charging, a target folder with Year/Month subfolders, and whether to start with new photos only or everything. Nothing is uploaded twice, and files with the same name never overwrite each other.
+*   **Save to ClyoCloud**: Appears in every app's share menu. Pick a folder (recent ones first, or create one) and the files upload in the background; shared text is saved as a note.
+*   **Settings**: Dark or Light theme, camera backup, recycle bin, image cache, sign out.
 
 ---
 
