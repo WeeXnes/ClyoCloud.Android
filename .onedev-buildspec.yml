@@ -1,6 +1,8 @@
-version: 43
+version: 59
 jobs:
 - name: ClyoCloudAndroid CI
+  executeInSandbox: false
+  jobExecutor: Builder
   steps:
   - type: CheckoutStep
     name: checkout code
@@ -14,11 +16,13 @@ jobs:
     name: build ClyoCloudAndroid
     runInContainer: false
     interpreter:
-      type: DefaultInterpreter
+      type: PosixInterpreter
+      shell: sh
       commands: |
         export ANDROID_SDK_ROOT=/opt/android-sdk
         export ANDROID_HOME=/opt/android-sdk
         ./gradlew assembleDebug
+    runAs: 0:0
     useTTY: true
     condition: SUCCESSFUL
     optional: false
@@ -28,12 +32,13 @@ jobs:
     artifacts: '*'
     condition: SUCCESSFUL
     optional: false
-  jobExecutor: Builder
   triggers:
   - type: BranchUpdateTrigger
     userMatch: anyone
   - type: PullRequestUpdateTrigger
   retryCondition: never
-  maxRetries: 3
+  maxAttempts: 4
   retryDelay: 30
+  includeUpstreamWhenRebuild: false
+  includeDownstreamWhenRebuild: false
   timeout: 14400
